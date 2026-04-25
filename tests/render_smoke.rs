@@ -8,35 +8,107 @@ use std::sync::Arc;
 fn cube_mesh() -> Mesh {
     let vertices = vec![
         // +X face
-        Vertex { position: [0.5, -0.5, -0.5], normal: [1.0, 0.0, 0.0] },
-        Vertex { position: [0.5,  0.5, -0.5], normal: [1.0, 0.0, 0.0] },
-        Vertex { position: [0.5,  0.5,  0.5], normal: [1.0, 0.0, 0.0] },
-        Vertex { position: [0.5, -0.5,  0.5], normal: [1.0, 0.0, 0.0] },
+        Vertex {
+            position: [0.5, -0.5, -0.5],
+            normal: [1.0, 0.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.5, -0.5],
+            normal: [1.0, 0.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.5, 0.5],
+            normal: [1.0, 0.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, -0.5, 0.5],
+            normal: [1.0, 0.0, 0.0],
+        },
         // -X face
-        Vertex { position: [-0.5, -0.5,  0.5], normal: [-1.0, 0.0, 0.0] },
-        Vertex { position: [-0.5,  0.5,  0.5], normal: [-1.0, 0.0, 0.0] },
-        Vertex { position: [-0.5,  0.5, -0.5], normal: [-1.0, 0.0, 0.0] },
-        Vertex { position: [-0.5, -0.5, -0.5], normal: [-1.0, 0.0, 0.0] },
+        Vertex {
+            position: [-0.5, -0.5, 0.5],
+            normal: [-1.0, 0.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, 0.5, 0.5],
+            normal: [-1.0, 0.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, 0.5, -0.5],
+            normal: [-1.0, 0.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, -0.5, -0.5],
+            normal: [-1.0, 0.0, 0.0],
+        },
         // +Y face
-        Vertex { position: [-0.5, 0.5, -0.5], normal: [0.0, 1.0, 0.0] },
-        Vertex { position: [-0.5, 0.5,  0.5], normal: [0.0, 1.0, 0.0] },
-        Vertex { position: [ 0.5, 0.5,  0.5], normal: [0.0, 1.0, 0.0] },
-        Vertex { position: [ 0.5, 0.5, -0.5], normal: [0.0, 1.0, 0.0] },
+        Vertex {
+            position: [-0.5, 0.5, -0.5],
+            normal: [0.0, 1.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, 0.5, 0.5],
+            normal: [0.0, 1.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.5, 0.5],
+            normal: [0.0, 1.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, 0.5, -0.5],
+            normal: [0.0, 1.0, 0.0],
+        },
         // -Y face
-        Vertex { position: [-0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0] },
-        Vertex { position: [-0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0] },
-        Vertex { position: [ 0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0] },
-        Vertex { position: [ 0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0] },
+        Vertex {
+            position: [-0.5, -0.5, 0.5],
+            normal: [0.0, -1.0, 0.0],
+        },
+        Vertex {
+            position: [-0.5, -0.5, -0.5],
+            normal: [0.0, -1.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, -0.5, -0.5],
+            normal: [0.0, -1.0, 0.0],
+        },
+        Vertex {
+            position: [0.5, -0.5, 0.5],
+            normal: [0.0, -1.0, 0.0],
+        },
         // +Z face
-        Vertex { position: [-0.5, -0.5, 0.5], normal: [0.0, 0.0, 1.0] },
-        Vertex { position: [ 0.5, -0.5, 0.5], normal: [0.0, 0.0, 1.0] },
-        Vertex { position: [ 0.5,  0.5, 0.5], normal: [0.0, 0.0, 1.0] },
-        Vertex { position: [-0.5,  0.5, 0.5], normal: [0.0, 0.0, 1.0] },
+        Vertex {
+            position: [-0.5, -0.5, 0.5],
+            normal: [0.0, 0.0, 1.0],
+        },
+        Vertex {
+            position: [0.5, -0.5, 0.5],
+            normal: [0.0, 0.0, 1.0],
+        },
+        Vertex {
+            position: [0.5, 0.5, 0.5],
+            normal: [0.0, 0.0, 1.0],
+        },
+        Vertex {
+            position: [-0.5, 0.5, 0.5],
+            normal: [0.0, 0.0, 1.0],
+        },
         // -Z face
-        Vertex { position: [ 0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0] },
-        Vertex { position: [-0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0] },
-        Vertex { position: [-0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0] },
-        Vertex { position: [ 0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0] },
+        Vertex {
+            position: [0.5, -0.5, -0.5],
+            normal: [0.0, 0.0, -1.0],
+        },
+        Vertex {
+            position: [-0.5, -0.5, -0.5],
+            normal: [0.0, 0.0, -1.0],
+        },
+        Vertex {
+            position: [-0.5, 0.5, -0.5],
+            normal: [0.0, 0.0, -1.0],
+        },
+        Vertex {
+            position: [0.5, 0.5, -0.5],
+            normal: [0.0, 0.0, -1.0],
+        },
     ];
     let indices: Vec<u32> = (0..6u32)
         .flat_map(|f| {
@@ -63,9 +135,8 @@ fn perspective(eye: [f32; 3], target: [f32; 3], znear: f32, zfar: f32) -> Camera
 
 fn readback(engine: &Engine) -> Vec<u8> {
     let (w, h) = engine.size;
-    let bytes_per_row = ((w * 4 + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
-        / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-        * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let bytes_per_row =
+        (w * 4).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
     let buf_size = (bytes_per_row * h) as u64;
 
     let staging = engine.device.create_buffer(&wgpu::BufferDescriptor {
@@ -152,8 +223,7 @@ fn render_smoke() {
     // --- teapot ---
     {
         let mesh = Arc::new(Mesh::from_obj_file("assets/teapot.obj").expect("load teapot"));
-        let mut scene =
-            Scene::new(perspective([0.0, 1.5, 4.0], [0.0, 1.0, 0.0], 0.1, 100.0));
+        let mut scene = Scene::new(perspective([0.0, 1.5, 4.0], [0.0, 1.0, 0.0], 0.1, 100.0));
         scene.add(mesh);
         engine.render(&scene);
         let pixels = readback(&engine);

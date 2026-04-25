@@ -15,7 +15,8 @@ pub struct Engine {
     camera_bg: wgpu::BindGroup,
     // Stores Arc<Mesh> alongside buffers so the mesh is kept alive and its
     // pointer is stable (no reuse by a different allocation).
-    mesh_cache: HashMap<*const crate::mesh::Mesh, (Arc<crate::mesh::Mesh>, wgpu::Buffer, wgpu::Buffer)>,
+    mesh_cache:
+        HashMap<*const crate::mesh::Mesh, (Arc<crate::mesh::Mesh>, wgpu::Buffer, wgpu::Buffer)>,
 }
 
 impl Engine {
@@ -140,20 +141,20 @@ impl Engine {
         for drawable in &scene.drawables {
             let mesh_ptr = Arc::as_ptr(&drawable.mesh);
             if !self.mesh_cache.contains_key(&mesh_ptr) {
-                let vbuf =
-                    self.device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: Some("vbuf"),
-                            contents: bytemuck::cast_slice(&drawable.mesh.vertices),
-                            usage: wgpu::BufferUsages::VERTEX,
-                        });
-                let ibuf =
-                    self.device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: Some("ibuf"),
-                            contents: bytemuck::cast_slice(&drawable.mesh.indices),
-                            usage: wgpu::BufferUsages::INDEX,
-                        });
+                let vbuf = self
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("vbuf"),
+                        contents: bytemuck::cast_slice(&drawable.mesh.vertices),
+                        usage: wgpu::BufferUsages::VERTEX,
+                    });
+                let ibuf = self
+                    .device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("ibuf"),
+                        contents: bytemuck::cast_slice(&drawable.mesh.indices),
+                        usage: wgpu::BufferUsages::INDEX,
+                    });
                 self.mesh_cache
                     .insert(mesh_ptr, (Arc::clone(&drawable.mesh), vbuf, ibuf));
             }

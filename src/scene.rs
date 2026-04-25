@@ -4,8 +4,18 @@ use std::sync::Arc;
 use crate::mesh::Mesh;
 
 pub enum Projection {
-    Perspective { fov_y_radians: f32, aspect: f32, znear: f32, zfar: f32 },
-    Orthographic { half_height: f32, aspect: f32, znear: f32, zfar: f32 },
+    Perspective {
+        fov_y_radians: f32,
+        aspect: f32,
+        znear: f32,
+        zfar: f32,
+    },
+    Orthographic {
+        half_height: f32,
+        aspect: f32,
+        znear: f32,
+        zfar: f32,
+    },
 }
 
 pub struct Camera {
@@ -19,15 +29,26 @@ impl Camera {
     pub fn view_proj(&self) -> Mat4 {
         let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = match self.projection {
-            Projection::Perspective { fov_y_radians, aspect, znear, zfar } => {
-                Mat4::perspective_rh(fov_y_radians, aspect, znear, zfar)
-            }
-            Projection::Orthographic { half_height, aspect, znear, zfar } => {
+            Projection::Perspective {
+                fov_y_radians,
+                aspect,
+                znear,
+                zfar,
+            } => Mat4::perspective_rh(fov_y_radians, aspect, znear, zfar),
+            Projection::Orthographic {
+                half_height,
+                aspect,
+                znear,
+                zfar,
+            } => {
                 let half_width = half_height * aspect;
                 Mat4::orthographic_rh(
-                    -half_width, half_width,
-                    -half_height, half_height,
-                    znear, zfar,
+                    -half_width,
+                    half_width,
+                    -half_height,
+                    half_height,
+                    znear,
+                    zfar,
                 )
             }
         };
@@ -47,11 +68,17 @@ pub struct Scene {
 
 impl Scene {
     pub fn new(camera: Camera) -> Self {
-        Self { camera, drawables: Vec::new() }
+        Self {
+            camera,
+            drawables: Vec::new(),
+        }
     }
 
     pub fn add(&mut self, mesh: Arc<Mesh>) {
-        self.drawables.push(Drawable { mesh, model: Mat4::IDENTITY });
+        self.drawables.push(Drawable {
+            mesh,
+            model: Mat4::IDENTITY,
+        });
     }
 }
 

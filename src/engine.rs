@@ -43,7 +43,12 @@ impl Engine {
 
     /// Build an engine from an already-created device and queue.
     /// Use this when the caller needs to share the device with a surface presenter.
-    pub fn from_existing(device: wgpu::Device, queue: wgpu::Queue, width: u32, height: u32) -> Self {
+    pub fn from_existing(
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        width: u32,
+        height: u32,
+    ) -> Self {
         let color = Self::make_color(&device, width, height);
         let depth = Self::make_depth(&device, width, height);
 

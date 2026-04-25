@@ -2,7 +2,7 @@ use shinra::{
     engine::Engine,
     mesh::Mesh,
     presenter::{window::WindowPresenter, FrameCtx, Presenter},
-    scene::{Camera, Projection, Scene, orbit_eye},
+    scene::{orbit_eye, Camera, Projection, Scene},
 };
 use std::sync::Arc;
 use winit::{
@@ -52,14 +52,13 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(window_attrs).unwrap());
 
         let surface = self.instance.create_surface(window.clone()).unwrap();
-        let adapter = pollster::block_on(self.instance.request_adapter(
-            &wgpu::RequestAdapterOptions {
+        let adapter =
+            pollster::block_on(self.instance.request_adapter(&wgpu::RequestAdapterOptions {
                 compatible_surface: Some(&surface),
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 ..Default::default()
-            },
-        ))
-        .expect("no adapter");
+            }))
+            .expect("no adapter");
 
         let (device, queue) =
             pollster::block_on(adapter.request_device(&Default::default(), None)).unwrap();
@@ -89,17 +88,17 @@ impl ApplicationHandler for App {
         });
         scene.add(mesh);
 
-        self.state = Some(Initialized { window, engine, presenter, scene });
+        self.state = Some(Initialized {
+            window,
+            engine,
+            presenter,
+            scene,
+        });
         self.start = std::time::Instant::now();
         self.state.as_ref().unwrap().window.request_redraw();
     }
 
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        _id: WindowId,
-        event: WindowEvent,
-    ) {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match &event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();

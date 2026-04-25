@@ -148,11 +148,11 @@ impl Presenter for WindowPresenter {
             ],
         });
 
-        let mut encoder =
-            ctx.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("blit"),
-                });
+        let mut encoder = ctx
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("blit"),
+            });
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

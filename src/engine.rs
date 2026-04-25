@@ -1,9 +1,15 @@
+use wgpu::util::DeviceExt;
+
 pub struct Engine {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub color: wgpu::Texture,
     pub depth: wgpu::Texture,
     pub size: (u32, u32),
+    pipeline: wgpu::RenderPipeline,
+    camera_buf: wgpu::Buffer,
+    camera_bgl: wgpu::BindGroupLayout,
+    camera_bg: wgpu::BindGroup,
 }
 
 impl Engine {
@@ -28,12 +34,94 @@ impl Engine {
         let color = Self::make_color(&device, width, height);
         let depth = Self::make_depth(&device, width, height);
 
+        let camera_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("camera_bgl"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let identity: [f32; 16] = glam::Mat4::IDENTITY.to_cols_array();
+        let camera_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("camera"),
+            contents: bytemuck::bytes_of(&identity),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let camera_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("camera_bg"),
+            layout: &camera_bgl,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buf.as_entire_binding(),
+            }],
+        });
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("pipeline_layout"),
+            bind_group_layouts: &[&camera_bgl],
+            push_constant_ranges: &[],
+        });
+
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[crate::mesh::Vertex::desc()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
         Self {
             device,
             queue,
             color,
             depth,
             size: (width, height),
+            pipeline,
+            camera_buf,
+            camera_bgl,
+            camera_bg,
         }
     }
 
@@ -114,5 +202,11 @@ mod tests {
         let depth_size = engine.depth.size();
         assert_eq!(depth_size.width, 128);
         assert_eq!(depth_size.height, 96);
+    }
+
+    #[test]
+    fn engine_pipeline() {
+        let engine = Engine::new(64, 64);
+        assert_eq!(engine.camera_buf.size(), 64);
     }
 }

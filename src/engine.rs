@@ -6,9 +6,13 @@ pub struct Engine {
     pub color: wgpu::Texture,
     pub depth: wgpu::Texture,
     pub size: (u32, u32),
+    #[allow(dead_code)]
     pipeline: wgpu::RenderPipeline,
+    #[allow(dead_code)]
     camera_buf: wgpu::Buffer,
+    #[allow(dead_code)]
     camera_bgl: wgpu::BindGroupLayout,
+    #[allow(dead_code)]
     camera_bg: wgpu::BindGroup,
 }
 

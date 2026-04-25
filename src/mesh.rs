@@ -92,9 +92,18 @@ impl Mesh {
                     let n = normal.to_array();
 
                     let base = vertices.len() as u32;
-                    vertices.push(Vertex { position: p0.to_array(), normal: n });
-                    vertices.push(Vertex { position: p1.to_array(), normal: n });
-                    vertices.push(Vertex { position: p2.to_array(), normal: n });
+                    vertices.push(Vertex {
+                        position: p0.to_array(),
+                        normal: n,
+                    });
+                    vertices.push(Vertex {
+                        position: p1.to_array(),
+                        normal: n,
+                    });
+                    vertices.push(Vertex {
+                        position: p2.to_array(),
+                        normal: n,
+                    });
                     indices.push(base);
                     indices.push(base + 1);
                     indices.push(base + 2);
@@ -117,10 +126,9 @@ mod tests {
         let max_idx = *mesh.indices.iter().max().unwrap() as usize;
         assert!(max_idx < mesh.vertices.len(), "index out of range");
         for v in &mesh.vertices {
-            let len = (v.normal[0] * v.normal[0]
-                + v.normal[1] * v.normal[1]
-                + v.normal[2] * v.normal[2])
-                .sqrt();
+            let len =
+                (v.normal[0] * v.normal[0] + v.normal[1] * v.normal[1] + v.normal[2] * v.normal[2])
+                    .sqrt();
             assert!(
                 (len - 1.0).abs() < 1e-3,
                 "normal not unit length: {len} for {:?}",

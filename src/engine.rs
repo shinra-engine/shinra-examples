@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::sync::Arc;
 use wgpu::util::DeviceExt;
 
 pub struct Engine {
@@ -6,14 +8,14 @@ pub struct Engine {
     pub color: wgpu::Texture,
     pub depth: wgpu::Texture,
     pub size: (u32, u32),
-    #[allow(dead_code)]
     pipeline: wgpu::RenderPipeline,
-    #[allow(dead_code)]
     camera_buf: wgpu::Buffer,
     #[allow(dead_code)]
     camera_bgl: wgpu::BindGroupLayout,
-    #[allow(dead_code)]
     camera_bg: wgpu::BindGroup,
+    // Stores Arc<Mesh> alongside buffers so the mesh is kept alive and its
+    // pointer is stable (no reuse by a different allocation).
+    mesh_cache: HashMap<*const crate::mesh::Mesh, (Arc<crate::mesh::Mesh>, wgpu::Buffer, wgpu::Buffer)>,
 }
 
 impl Engine {
@@ -126,7 +128,90 @@ impl Engine {
             camera_buf,
             camera_bgl,
             camera_bg,
+            mesh_cache: HashMap::new(),
         }
+    }
+
+    pub fn render(&mut self, scene: &crate::scene::Scene) {
+        let vp: [f32; 16] = scene.camera.view_proj().to_cols_array();
+        self.queue
+            .write_buffer(&self.camera_buf, 0, bytemuck::bytes_of(&vp));
+
+        for drawable in &scene.drawables {
+            let mesh_ptr = Arc::as_ptr(&drawable.mesh);
+            if !self.mesh_cache.contains_key(&mesh_ptr) {
+                let vbuf =
+                    self.device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("vbuf"),
+                            contents: bytemuck::cast_slice(&drawable.mesh.vertices),
+                            usage: wgpu::BufferUsages::VERTEX,
+                        });
+                let ibuf =
+                    self.device
+                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                            label: Some("ibuf"),
+                            contents: bytemuck::cast_slice(&drawable.mesh.indices),
+                            usage: wgpu::BufferUsages::INDEX,
+                        });
+                self.mesh_cache
+                    .insert(mesh_ptr, (Arc::clone(&drawable.mesh), vbuf, ibuf));
+            }
+        }
+
+        let color_view = self
+            .color
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let depth_view = self
+            .depth
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("render"),
+            });
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("main_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &color_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.05,
+                            g: 0.05,
+                            b: 0.07,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+
+            pass.set_pipeline(&self.pipeline);
+            pass.set_bind_group(0, &self.camera_bg, &[]);
+
+            for drawable in &scene.drawables {
+                let mesh_ptr = Arc::as_ptr(&drawable.mesh);
+                let (_, vbuf, ibuf) = self.mesh_cache.get(&mesh_ptr).unwrap();
+                pass.set_vertex_buffer(0, vbuf.slice(..));
+                pass.set_index_buffer(ibuf.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..drawable.mesh.indices.len() as u32, 0, 0..1);
+            }
+        }
+
+        self.queue.submit([encoder.finish()]);
     }
 
     /// Reallocate color + depth textures at a new size.

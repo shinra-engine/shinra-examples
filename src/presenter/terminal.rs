@@ -15,7 +15,7 @@ impl TerminalPresenter {
     pub fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
         let unpadded = width * 4;
         let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let pad_bytes_per_row = (unpadded + align - 1) / align * align;
+        let pad_bytes_per_row = unpadded.div_ceil(align) * align;
         let buffer_size = (pad_bytes_per_row * height) as u64;
 
         let readback = device.create_buffer(&wgpu::BufferDescriptor {

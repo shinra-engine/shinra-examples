@@ -8,13 +8,35 @@ use shinra::{
     engine::Engine,
     mesh::Mesh,
     presenter::{terminal::TerminalPresenter, FrameCtx, Presenter},
-    scene::{orbit_eye, Camera, Projection, Scene},
+    scene::{Camera, Projection, Scene},
 };
 use std::{
     io::stdout,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+const YAW_STEP: f32 = 0.10;
+const PITCH_STEP: f32 = 0.10;
+const PITCH_MIN: f32 = -1.4;
+const PITCH_MAX: f32 = 1.4;
+
+struct CameraCtrl {
+    yaw: f32,
+    pitch: f32,
+    radius: f32,
+    target: glam::Vec3,
+}
+
+impl CameraCtrl {
+    fn eye(&self) -> glam::Vec3 {
+        glam::Vec3::new(
+            self.target.x + self.radius * self.pitch.cos() * self.yaw.sin(),
+            self.target.y + self.radius * self.pitch.sin(),
+            self.target.z + self.radius * self.pitch.cos() * self.yaw.cos(),
+        )
+    }
+}
 
 struct RawModeGuard;
 
@@ -44,9 +66,16 @@ fn main() -> anyhow::Result<()> {
     let mut engine = Engine::new(width, height);
     let mut presenter = TerminalPresenter::new(&engine.device, width, height);
 
+    let mut ctrl = CameraCtrl {
+        yaw: 0.0,
+        pitch: 0.4,
+        radius: 3.0,
+        target: glam::Vec3::ZERO,
+    };
+
     let mesh = Arc::new(Mesh::from_obj_file("assets/bunny.obj")?);
     let mut scene = Scene::new(Camera {
-        eye: orbit_eye(0.0, 3.0, 1.5),
+        eye: ctrl.eye(),
         target: glam::Vec3::ZERO,
         up: glam::Vec3::Y,
         projection: Projection::Perspective {
@@ -61,13 +90,11 @@ fn main() -> anyhow::Result<()> {
     let _guard = RawModeGuard::enter();
 
     let frame_duration = Duration::from_millis(33);
-    let start = Instant::now();
 
     loop {
         let frame_start = Instant::now();
 
-        let t = start.elapsed().as_secs_f32();
-        scene.camera.eye = orbit_eye(t * 0.6, 3.0, 1.5);
+        scene.camera.eye = ctrl.eye();
 
         engine.render(&scene);
 
@@ -91,6 +118,21 @@ fn main() -> anyhow::Result<()> {
                 }) => {
                     return Ok(());
                 }
+                Event::Key(KeyEvent {
+                    code: KeyCode::Left,
+                    ..
+                }) => ctrl.yaw -= YAW_STEP,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Right,
+                    ..
+                }) => ctrl.yaw += YAW_STEP,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Up, ..
+                }) => ctrl.pitch = (ctrl.pitch + PITCH_STEP).min(PITCH_MAX),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Down,
+                    ..
+                }) => ctrl.pitch = (ctrl.pitch - PITCH_STEP).max(PITCH_MIN),
                 _ => {}
             }
         }

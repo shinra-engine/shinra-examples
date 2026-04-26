@@ -2,7 +2,7 @@ use shinra::{
     engine::Engine,
     mesh::Mesh,
     presenter::{window::WindowPresenter, FrameCtx, Presenter},
-    scene::{orbit_eye, Camera, Projection, Scene},
+    scene::{Camera, Projection, Scene},
 };
 use std::sync::Arc;
 use winit::{
@@ -13,17 +13,39 @@ use winit::{
     window::{Window, WindowId},
 };
 
+const YAW_STEP: f32 = 0.10;
+const PITCH_STEP: f32 = 0.10;
+const PITCH_MIN: f32 = -1.4;
+const PITCH_MAX: f32 = 1.4;
+
+struct CameraCtrl {
+    yaw: f32,
+    pitch: f32,
+    radius: f32,
+    target: glam::Vec3,
+}
+
+impl CameraCtrl {
+    fn eye(&self) -> glam::Vec3 {
+        glam::Vec3::new(
+            self.target.x + self.radius * self.pitch.cos() * self.yaw.sin(),
+            self.target.y + self.radius * self.pitch.sin(),
+            self.target.z + self.radius * self.pitch.cos() * self.yaw.cos(),
+        )
+    }
+}
+
 struct Initialized {
     window: Arc<Window>,
     engine: Engine,
     presenter: WindowPresenter,
     scene: Scene,
+    ctrl: CameraCtrl,
 }
 
 struct App {
     instance: wgpu::Instance,
     state: Option<Initialized>,
-    start: std::time::Instant,
     render_w: u32,
     render_h: u32,
 }
@@ -33,7 +55,6 @@ impl App {
         Self {
             instance: wgpu::Instance::default(),
             state: None,
-            start: std::time::Instant::now(),
             render_w: 256,
             render_h: 144,
         }
@@ -74,9 +95,16 @@ impl ApplicationHandler for App {
             win_size.height.max(1),
         );
 
+        let ctrl = CameraCtrl {
+            yaw: 0.0,
+            pitch: 0.4,
+            radius: 3.0,
+            target: glam::Vec3::ZERO,
+        };
+
         let mesh = Arc::new(Mesh::from_obj_file("assets/teapot.obj").unwrap());
         let mut scene = Scene::new(Camera {
-            eye: glam::Vec3::new(3.0, 2.0, 0.0),
+            eye: ctrl.eye(),
             target: glam::Vec3::ZERO,
             up: glam::Vec3::Y,
             projection: Projection::Perspective {
@@ -93,43 +121,47 @@ impl ApplicationHandler for App {
             engine,
             presenter,
             scene,
+            ctrl,
         });
-        self.start = std::time::Instant::now();
         self.state.as_ref().unwrap().window.request_redraw();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        match &event {
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-                return;
-            }
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        state: ElementState::Pressed,
-                        logical_key: Key::Named(NamedKey::Escape),
-                        ..
-                    },
-                ..
-            } => {
-                event_loop.exit();
-                return;
-            }
-            _ => {}
+        if let WindowEvent::CloseRequested = event {
+            event_loop.exit();
+            return;
         }
 
         let Some(s) = self.state.as_mut() else {
             return;
         };
+
         match event {
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        state: ElementState::Pressed,
+                        logical_key,
+                        ..
+                    },
+                ..
+            } => match logical_key {
+                Key::Named(NamedKey::ArrowLeft) => s.ctrl.yaw -= YAW_STEP,
+                Key::Named(NamedKey::ArrowRight) => s.ctrl.yaw += YAW_STEP,
+                Key::Named(NamedKey::ArrowUp) => {
+                    s.ctrl.pitch = (s.ctrl.pitch + PITCH_STEP).min(PITCH_MAX)
+                }
+                Key::Named(NamedKey::ArrowDown) => {
+                    s.ctrl.pitch = (s.ctrl.pitch - PITCH_STEP).max(PITCH_MIN)
+                }
+                Key::Named(NamedKey::Escape) => event_loop.exit(),
+                _ => {}
+            },
             WindowEvent::Resized(sz) => {
                 s.presenter.resize(&s.engine.device, sz.width, sz.height);
             }
             WindowEvent::RedrawRequested => {
-                let t = self.start.elapsed().as_secs_f32();
-                let s = self.state.as_mut().unwrap();
-                s.scene.camera.eye = orbit_eye(t * 0.6, 3.0, 1.5);
+                s.scene.camera.eye = s.ctrl.eye();
                 s.engine.render(&s.scene);
                 let mut ctx = FrameCtx {
                     device: &s.engine.device,

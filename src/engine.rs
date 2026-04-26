@@ -13,6 +13,8 @@ pub struct Engine {
     #[allow(dead_code)]
     camera_bgl: wgpu::BindGroupLayout,
     camera_bg: wgpu::BindGroup,
+    object_bgl: wgpu::BindGroupLayout,
+    object_slots: Vec<(wgpu::Buffer, wgpu::BindGroup)>,
     // Stores Arc<Mesh> alongside buffers so the mesh is kept alive and its
     // pointer is stable (no reuse by a different allocation).
     mesh_cache:
@@ -66,6 +68,20 @@ impl Engine {
             }],
         });
 
+        let object_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("object_bgl"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
         let identity: [f32; 16] = glam::Mat4::IDENTITY.to_cols_array();
         let camera_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("camera"),
@@ -89,7 +105,7 @@ impl Engine {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("pipeline_layout"),
-            bind_group_layouts: &[&camera_bgl],
+            bind_group_layouts: &[&camera_bgl, &object_bgl],
             push_constant_ranges: &[],
         });
 
@@ -140,6 +156,8 @@ impl Engine {
             camera_buf,
             camera_bgl,
             camera_bg,
+            object_bgl,
+            object_slots: Vec::new(),
             mesh_cache: HashMap::new(),
         }
     }
@@ -169,6 +187,33 @@ impl Engine {
                 self.mesh_cache
                     .insert(mesh_ptr, (Arc::clone(&drawable.mesh), vbuf, ibuf));
             }
+        }
+
+        // Grow object_slots to cover all drawables, then upload model matrices.
+        let needed = scene.drawables.len();
+        while self.object_slots.len() < needed {
+            let identity: [f32; 16] = glam::Mat4::IDENTITY.to_cols_array();
+            let buf = self
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("object_model"),
+                    contents: bytemuck::bytes_of(&identity),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+            let bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("object_bg"),
+                layout: &self.object_bgl,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: buf.as_entire_binding(),
+                }],
+            });
+            self.object_slots.push((buf, bg));
+        }
+        for (i, drawable) in scene.drawables.iter().enumerate() {
+            let model: [f32; 16] = drawable.model.to_cols_array();
+            self.queue
+                .write_buffer(&self.object_slots[i].0, 0, bytemuck::bytes_of(&model));
         }
 
         let color_view = self
@@ -214,11 +259,12 @@ impl Engine {
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.camera_bg, &[]);
 
-            for drawable in &scene.drawables {
+            for (i, drawable) in scene.drawables.iter().enumerate() {
                 let mesh_ptr = Arc::as_ptr(&drawable.mesh);
                 let (_, vbuf, ibuf) = self.mesh_cache.get(&mesh_ptr).unwrap();
                 pass.set_vertex_buffer(0, vbuf.slice(..));
                 pass.set_index_buffer(ibuf.slice(..), wgpu::IndexFormat::Uint32);
+                pass.set_bind_group(1, &self.object_slots[i].1, &[]);
                 pass.draw_indexed(0..drawable.mesh.indices.len() as u32, 0, 0..1);
             }
         }

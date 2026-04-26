@@ -21,6 +21,10 @@ const PITCH_STEP: f32 = 0.10;
 const PITCH_MIN: f32 = -1.4;
 const PITCH_MAX: f32 = 1.4;
 
+const SCALE_MIN: f32 = 0.5;
+const SCALE_MAX: f32 = 50.0;
+const SCALE_FACTOR: f32 = 1.10;
+
 struct CameraCtrl {
     yaw: f32,
     pitch: f32,
@@ -35,6 +39,16 @@ impl CameraCtrl {
             self.target.y + self.radius * self.pitch.sin(),
             self.target.z + self.radius * self.pitch.cos() * self.yaw.cos(),
         )
+    }
+}
+
+struct ModelCtrl {
+    scale: f32,
+}
+
+impl ModelCtrl {
+    fn matrix(&self) -> glam::Mat4 {
+        glam::Mat4::from_scale(glam::Vec3::splat(self.scale))
     }
 }
 
@@ -73,6 +87,8 @@ fn main() -> anyhow::Result<()> {
         target: glam::Vec3::ZERO,
     };
 
+    let mut mctrl = ModelCtrl { scale: 10.0 };
+
     let mesh = Arc::new(Mesh::from_obj_file("assets/bunny.obj")?);
     let mut scene = Scene::new(Camera {
         eye: ctrl.eye(),
@@ -95,6 +111,7 @@ fn main() -> anyhow::Result<()> {
         let frame_start = Instant::now();
 
         scene.camera.eye = ctrl.eye();
+        scene.set_drawable_model(0, mctrl.matrix());
 
         engine.render(&scene);
 
@@ -133,6 +150,14 @@ fn main() -> anyhow::Result<()> {
                     code: KeyCode::Down,
                     ..
                 }) => ctrl.pitch = (ctrl.pitch - PITCH_STEP).max(PITCH_MIN),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('j'),
+                    ..
+                }) => mctrl.scale = (mctrl.scale * SCALE_FACTOR).min(SCALE_MAX),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('k'),
+                    ..
+                }) => mctrl.scale = (mctrl.scale / SCALE_FACTOR).max(SCALE_MIN),
                 _ => {}
             }
         }

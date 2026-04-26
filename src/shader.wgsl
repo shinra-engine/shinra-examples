@@ -1,5 +1,8 @@
 struct Camera { view_proj: mat4x4<f32>, };
+struct Object { model: mat4x4<f32>, };
+
 @group(0) @binding(0) var<uniform> camera: Camera;
+@group(1) @binding(0) var<uniform> object: Object;
 
 struct VsIn  { @location(0) pos: vec3<f32>, @location(1) normal: vec3<f32> };
 struct VsOut { @builtin(position) clip: vec4<f32>, @location(0) world_normal: vec3<f32> };
@@ -7,8 +10,9 @@ struct VsOut { @builtin(position) clip: vec4<f32>, @location(0) world_normal: ve
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
     var out: VsOut;
-    out.clip = camera.view_proj * vec4<f32>(in.pos, 1.0);
-    out.world_normal = in.normal;
+    let world_pos = object.model * vec4<f32>(in.pos, 1.0);
+    out.clip = camera.view_proj * world_pos;
+    out.world_normal = (object.model * vec4<f32>(in.normal, 0.0)).xyz;
     return out;
 }
 

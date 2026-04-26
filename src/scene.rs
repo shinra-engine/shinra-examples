@@ -80,6 +80,12 @@ impl Scene {
             model: Mat4::IDENTITY,
         });
     }
+
+    pub fn set_drawable_model(&mut self, idx: usize, model: Mat4) {
+        if let Some(d) = self.drawables.get_mut(idx) {
+            d.model = model;
+        }
+    }
 }
 
 pub fn orbit_eye(t_seconds: f32, radius: f32, height: f32) -> Vec3 {

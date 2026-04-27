@@ -8,7 +8,7 @@ use shinra::{
     engine::Engine,
     mesh::Mesh,
     presenter::{terminal::TerminalPresenter, FrameCtx, Presenter},
-    scene::{Camera, Projection, Scene},
+    scene::{BunnyTag, Camera, MeshHandle, Model, PlayerControlled, Projection, Scene, TeapotTag},
 };
 use std::{
     io::stdout,
@@ -24,6 +24,8 @@ const PITCH_MAX: f32 = 1.4;
 const SCALE_MIN: f32 = 0.5;
 const SCALE_MAX: f32 = 50.0;
 const SCALE_FACTOR: f32 = 1.10;
+
+const MOVE_STEP: f32 = 0.10;
 
 struct CameraCtrl {
     yaw: f32,
@@ -42,14 +44,8 @@ impl CameraCtrl {
     }
 }
 
-struct ModelCtrl {
-    scale: f32,
-}
-
-impl ModelCtrl {
-    fn matrix(&self) -> glam::Mat4 {
-        glam::Mat4::from_scale(glam::Vec3::splat(self.scale))
-    }
+struct TeapotCtrl {
+    translation: glam::Vec3,
 }
 
 struct RawModeGuard;
@@ -83,16 +79,22 @@ fn main() -> anyhow::Result<()> {
     let mut ctrl = CameraCtrl {
         yaw: 0.0,
         pitch: 0.4,
-        radius: 3.0,
-        target: glam::Vec3::ZERO,
+        radius: 5.0,
+        target: glam::Vec3::new(1.5, 0.5, 0.0),
     };
 
-    let mut mctrl = ModelCtrl { scale: 10.0 };
+    let mut tctrl = TeapotCtrl {
+        translation: glam::Vec3::new(3.0, 0.0, 0.0),
+    };
 
-    let mesh = Arc::new(Mesh::from_obj_file("assets/bunny.obj")?);
+    let mut bunny_scale: f32 = 10.0;
+
+    let bunny_mesh = Arc::new(Mesh::from_obj_file("assets/bunny.obj")?);
+    let teapot_mesh = Arc::new(Mesh::from_obj_file("assets/teapot.obj")?);
+
     let mut scene = Scene::new(Camera {
         eye: ctrl.eye(),
-        target: glam::Vec3::ZERO,
+        target: ctrl.target,
         up: glam::Vec3::Y,
         projection: Projection::Perspective {
             fov_y_radians: 45f32.to_radians(),
@@ -101,7 +103,18 @@ fn main() -> anyhow::Result<()> {
             zfar: 100.0,
         },
     });
-    scene.add(mesh);
+
+    let bunny_entity = scene.world.spawn((
+        MeshHandle(bunny_mesh),
+        Model(glam::Mat4::from_scale(glam::Vec3::splat(10.0))),
+        BunnyTag,
+    ));
+    let teapot_entity = scene.world.spawn((
+        MeshHandle(teapot_mesh),
+        Model(glam::Mat4::from_translation(tctrl.translation)),
+        TeapotTag,
+        PlayerControlled,
+    ));
 
     let _guard = RawModeGuard::enter();
 
@@ -111,7 +124,15 @@ fn main() -> anyhow::Result<()> {
         let frame_start = Instant::now();
 
         scene.camera.eye = ctrl.eye();
-        scene.set_drawable_model(0, mctrl.matrix());
+        scene.camera.target = ctrl.target;
+        scene.set_model(
+            bunny_entity,
+            glam::Mat4::from_scale(glam::Vec3::splat(bunny_scale)),
+        );
+        scene.set_model(
+            teapot_entity,
+            glam::Mat4::from_translation(tctrl.translation),
+        );
 
         engine.render(&scene);
 
@@ -153,11 +174,27 @@ fn main() -> anyhow::Result<()> {
                 Event::Key(KeyEvent {
                     code: KeyCode::Char('j'),
                     ..
-                }) => mctrl.scale = (mctrl.scale * SCALE_FACTOR).min(SCALE_MAX),
+                }) => bunny_scale = (bunny_scale * SCALE_FACTOR).min(SCALE_MAX),
                 Event::Key(KeyEvent {
                     code: KeyCode::Char('k'),
                     ..
-                }) => mctrl.scale = (mctrl.scale / SCALE_FACTOR).max(SCALE_MIN),
+                }) => bunny_scale = (bunny_scale / SCALE_FACTOR).max(SCALE_MIN),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('w'),
+                    ..
+                }) => tctrl.translation.z -= MOVE_STEP,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('s'),
+                    ..
+                }) => tctrl.translation.z += MOVE_STEP,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('a'),
+                    ..
+                }) => tctrl.translation.x -= MOVE_STEP,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('d'),
+                    ..
+                }) => tctrl.translation.x += MOVE_STEP,
                 _ => {}
             }
         }

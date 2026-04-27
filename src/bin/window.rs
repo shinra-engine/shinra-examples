@@ -2,7 +2,7 @@ use shinra::{
     engine::Engine,
     mesh::Mesh,
     presenter::{window::WindowPresenter, FrameCtx, Presenter},
-    scene::{Camera, Projection, Scene},
+    scene::{BunnyTag, Camera, MeshHandle, Model, PlayerControlled, Projection, Scene, TeapotTag},
 };
 use std::sync::Arc;
 use winit::{
@@ -17,6 +17,12 @@ const YAW_STEP: f32 = 0.10;
 const PITCH_STEP: f32 = 0.10;
 const PITCH_MIN: f32 = -1.4;
 const PITCH_MAX: f32 = 1.4;
+
+const SCALE_MIN: f32 = 0.5;
+const SCALE_MAX: f32 = 50.0;
+const SCALE_FACTOR: f32 = 1.10;
+
+const MOVE_STEP: f32 = 0.10;
 
 struct CameraCtrl {
     yaw: f32,
@@ -35,12 +41,20 @@ impl CameraCtrl {
     }
 }
 
+struct TeapotCtrl {
+    translation: glam::Vec3,
+}
+
 struct Initialized {
     window: Arc<Window>,
     engine: Engine,
     presenter: WindowPresenter,
     scene: Scene,
     ctrl: CameraCtrl,
+    tctrl: TeapotCtrl,
+    bunny_entity: hecs::Entity,
+    teapot_entity: hecs::Entity,
+    bunny_scale: f32,
 }
 
 struct App {
@@ -98,14 +112,20 @@ impl ApplicationHandler for App {
         let ctrl = CameraCtrl {
             yaw: 0.0,
             pitch: 0.4,
-            radius: 3.0,
-            target: glam::Vec3::ZERO,
+            radius: 5.0,
+            target: glam::Vec3::new(1.5, 0.5, 0.0),
         };
 
-        let mesh = Arc::new(Mesh::from_obj_file("assets/teapot.obj").unwrap());
+        let tctrl = TeapotCtrl {
+            translation: glam::Vec3::new(3.0, 0.0, 0.0),
+        };
+
+        let bunny_mesh = Arc::new(Mesh::from_obj_file("assets/bunny.obj").unwrap());
+        let teapot_mesh = Arc::new(Mesh::from_obj_file("assets/teapot.obj").unwrap());
+
         let mut scene = Scene::new(Camera {
             eye: ctrl.eye(),
-            target: glam::Vec3::ZERO,
+            target: ctrl.target,
             up: glam::Vec3::Y,
             projection: Projection::Perspective {
                 fov_y_radians: 45f32.to_radians(),
@@ -114,7 +134,18 @@ impl ApplicationHandler for App {
                 zfar: 100.0,
             },
         });
-        scene.add(mesh);
+
+        let bunny_entity = scene.world.spawn((
+            MeshHandle(bunny_mesh),
+            Model(glam::Mat4::from_scale(glam::Vec3::splat(10.0))),
+            BunnyTag,
+        ));
+        let teapot_entity = scene.world.spawn((
+            MeshHandle(teapot_mesh),
+            Model(glam::Mat4::from_translation(tctrl.translation)),
+            TeapotTag,
+            PlayerControlled,
+        ));
 
         self.state = Some(Initialized {
             window,
@@ -122,6 +153,10 @@ impl ApplicationHandler for App {
             presenter,
             scene,
             ctrl,
+            tctrl,
+            bunny_entity,
+            teapot_entity,
+            bunny_scale: 10.0,
         });
         self.state.as_ref().unwrap().window.request_redraw();
     }
@@ -155,6 +190,15 @@ impl ApplicationHandler for App {
                     s.ctrl.pitch = (s.ctrl.pitch - PITCH_STEP).max(PITCH_MIN)
                 }
                 Key::Named(NamedKey::Escape) => event_loop.exit(),
+                Key::Character(ref c) => match c.as_str() {
+                    "w" => s.tctrl.translation.z -= MOVE_STEP,
+                    "s" => s.tctrl.translation.z += MOVE_STEP,
+                    "a" => s.tctrl.translation.x -= MOVE_STEP,
+                    "d" => s.tctrl.translation.x += MOVE_STEP,
+                    "j" => s.bunny_scale = (s.bunny_scale * SCALE_FACTOR).min(SCALE_MAX),
+                    "k" => s.bunny_scale = (s.bunny_scale / SCALE_FACTOR).max(SCALE_MIN),
+                    _ => {}
+                },
                 _ => {}
             },
             WindowEvent::Resized(sz) => {
@@ -162,6 +206,15 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 s.scene.camera.eye = s.ctrl.eye();
+                s.scene.camera.target = s.ctrl.target;
+                s.scene.set_model(
+                    s.bunny_entity,
+                    glam::Mat4::from_scale(glam::Vec3::splat(s.bunny_scale)),
+                );
+                s.scene.set_model(
+                    s.teapot_entity,
+                    glam::Mat4::from_translation(s.tctrl.translation),
+                );
                 s.engine.render(&s.scene);
                 let mut ctx = FrameCtx {
                     device: &s.engine.device,

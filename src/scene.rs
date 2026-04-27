@@ -56,34 +56,32 @@ impl Camera {
     }
 }
 
-pub struct Drawable {
-    pub mesh: Arc<Mesh>,
-    pub model: Mat4,
-}
+pub struct MeshHandle(pub Arc<Mesh>);
+pub struct Model(pub Mat4);
+pub struct BunnyTag;
+pub struct TeapotTag;
+pub struct PlayerControlled;
 
 pub struct Scene {
     pub camera: Camera,
-    pub drawables: Vec<Drawable>,
+    pub world: hecs::World,
 }
 
 impl Scene {
     pub fn new(camera: Camera) -> Self {
         Self {
             camera,
-            drawables: Vec::new(),
+            world: hecs::World::new(),
         }
     }
 
-    pub fn add(&mut self, mesh: Arc<Mesh>) {
-        self.drawables.push(Drawable {
-            mesh,
-            model: Mat4::IDENTITY,
-        });
+    pub fn spawn_mesh(&mut self, mesh: Arc<Mesh>, model: Mat4) -> hecs::Entity {
+        self.world.spawn((MeshHandle(mesh), Model(model)))
     }
 
-    pub fn set_drawable_model(&mut self, idx: usize, model: Mat4) {
-        if let Some(d) = self.drawables.get_mut(idx) {
-            d.model = model;
+    pub fn set_model(&mut self, e: hecs::Entity, model: Mat4) {
+        if let Ok(mut m) = self.world.get::<&mut Model>(e) {
+            *m = Model(model);
         }
     }
 }
@@ -149,9 +147,6 @@ mod tests {
     fn plus_x_point_in_front_of_camera() {
         let cam = default_perspective();
         let vp = cam.view_proj();
-        // Transform a point on +X axis (behind the target relative to eye at +X)
-        // Eye is at (3,1.5,0), target at origin → +X world maps to clip space
-        // We just need the clip-space W to be positive (in front).
         let point = glam::Vec4::new(1.0, 0.0, 0.0, 1.0);
         let clip = vp * point;
         assert!(clip.w > 0.0, "point should be in front of camera");

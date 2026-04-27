@@ -210,7 +210,7 @@ fn render_smoke() {
     {
         let mesh = Arc::new(cube_mesh());
         let mut scene = Scene::new(perspective([2.0, 2.0, 2.0], [0.0, 0.0, 0.0], 0.1, 100.0));
-        scene.add(mesh);
+        scene.spawn_mesh(mesh, glam::Mat4::IDENTITY);
         engine.render(&scene);
         let pixels = readback(&engine);
         save_png(&pixels, 256, 144, "cube");
@@ -224,7 +224,7 @@ fn render_smoke() {
     {
         let mesh = Arc::new(Mesh::from_obj_file("assets/teapot.obj").expect("load teapot"));
         let mut scene = Scene::new(perspective([0.0, 1.5, 4.0], [0.0, 1.0, 0.0], 0.1, 100.0));
-        scene.add(mesh);
+        scene.spawn_mesh(mesh, glam::Mat4::IDENTITY);
         engine.render(&scene);
         let pixels = readback(&engine);
         save_png(&pixels, 256, 144, "teapot");
@@ -243,7 +243,7 @@ fn render_smoke() {
             0.01,
             10.0,
         ));
-        scene.add(mesh);
+        scene.spawn_mesh(mesh, glam::Mat4::IDENTITY);
         engine.render(&scene);
         let pixels = readback(&engine);
         save_png(&pixels, 256, 144, "bunny");

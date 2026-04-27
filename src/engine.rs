@@ -163,34 +163,44 @@ impl Engine {
     }
 
     pub fn render(&mut self, scene: &crate::scene::Scene) {
+        use crate::scene::{MeshHandle, Model};
+
         let vp: [f32; 16] = scene.camera.view_proj().to_cols_array();
         self.queue
             .write_buffer(&self.camera_buf, 0, bytemuck::bytes_of(&vp));
 
-        for drawable in &scene.drawables {
-            let mesh_ptr = Arc::as_ptr(&drawable.mesh);
+        // Collect drawables in spawn (query) order — stable within a frame.
+        let drawables: Vec<(Arc<crate::mesh::Mesh>, glam::Mat4)> = scene
+            .world
+            .query::<(&MeshHandle, &Model)>()
+            .iter()
+            .map(|(_, (mh, m))| (Arc::clone(&mh.0), m.0))
+            .collect();
+
+        for (mesh, _) in &drawables {
+            let mesh_ptr = Arc::as_ptr(mesh);
             if !self.mesh_cache.contains_key(&mesh_ptr) {
                 let vbuf = self
                     .device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("vbuf"),
-                        contents: bytemuck::cast_slice(&drawable.mesh.vertices),
+                        contents: bytemuck::cast_slice(&mesh.vertices),
                         usage: wgpu::BufferUsages::VERTEX,
                     });
                 let ibuf = self
                     .device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("ibuf"),
-                        contents: bytemuck::cast_slice(&drawable.mesh.indices),
+                        contents: bytemuck::cast_slice(&mesh.indices),
                         usage: wgpu::BufferUsages::INDEX,
                     });
                 self.mesh_cache
-                    .insert(mesh_ptr, (Arc::clone(&drawable.mesh), vbuf, ibuf));
+                    .insert(mesh_ptr, (Arc::clone(mesh), vbuf, ibuf));
             }
         }
 
         // Grow object_slots to cover all drawables, then upload model matrices.
-        let needed = scene.drawables.len();
+        let needed = drawables.len();
         while self.object_slots.len() < needed {
             let identity: [f32; 16] = glam::Mat4::IDENTITY.to_cols_array();
             let buf = self
@@ -210,10 +220,10 @@ impl Engine {
             });
             self.object_slots.push((buf, bg));
         }
-        for (i, drawable) in scene.drawables.iter().enumerate() {
-            let model: [f32; 16] = drawable.model.to_cols_array();
+        for (i, (_, model)) in drawables.iter().enumerate() {
+            let model_arr: [f32; 16] = model.to_cols_array();
             self.queue
-                .write_buffer(&self.object_slots[i].0, 0, bytemuck::bytes_of(&model));
+                .write_buffer(&self.object_slots[i].0, 0, bytemuck::bytes_of(&model_arr));
         }
 
         let color_view = self
@@ -259,13 +269,13 @@ impl Engine {
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.camera_bg, &[]);
 
-            for (i, drawable) in scene.drawables.iter().enumerate() {
-                let mesh_ptr = Arc::as_ptr(&drawable.mesh);
+            for (i, (mesh, _)) in drawables.iter().enumerate() {
+                let mesh_ptr = Arc::as_ptr(mesh);
                 let (_, vbuf, ibuf) = self.mesh_cache.get(&mesh_ptr).unwrap();
                 pass.set_vertex_buffer(0, vbuf.slice(..));
                 pass.set_index_buffer(ibuf.slice(..), wgpu::IndexFormat::Uint32);
                 pass.set_bind_group(1, &self.object_slots[i].1, &[]);
-                pass.draw_indexed(0..drawable.mesh.indices.len() as u32, 0, 0..1);
+                pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
             }
         }
 

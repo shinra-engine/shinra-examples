@@ -1,0 +1,13 @@
+[package]
+name = "game2"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gametok-abi = { path = "../../abi" }
+hecs = "0.10"
+glam = "0.28"

@@ -15,16 +15,16 @@ pub fn world_reset() {
     WORLD.with(|w| *w.borrow_mut() = World::new());
 }
 
-pub fn spawn1<A: Component>(a: A) -> Entity {
-    WORLD.with(|w| w.borrow_mut().spawn((a,)))
+pub fn spawn1<A: Component>(a: A) {
+    WORLD.with(|w| { w.borrow_mut().spawn((a,)); });
 }
 
-pub fn spawn2<A: Component, B: Component>(a: A, b: B) -> Entity {
-    WORLD.with(|w| w.borrow_mut().spawn((a, b)))
+pub fn spawn2<A: Component, B: Component>(a: A, b: B) {
+    WORLD.with(|w| { w.borrow_mut().spawn((a, b)); });
 }
 
-pub fn spawn3<A: Component, B: Component, C: Component>(a: A, b: B, c: C) -> Entity {
-    WORLD.with(|w| w.borrow_mut().spawn((a, b, c)))
+pub fn spawn3<A: Component, B: Component, C: Component>(a: A, b: B, c: C) {
+    WORLD.with(|w| { w.borrow_mut().spawn((a, b, c)); });
 }
 
 pub fn despawn(e: Entity) -> bool {

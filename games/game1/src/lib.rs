@@ -1,8 +1,7 @@
 #![allow(unused_variables, unused_mut, dead_code, unused_imports, unused_macros)]
 #![allow(non_snake_case)]
 
-use gametok_abi::{Drawable, InputFrame};
-use std::cell::RefCell;
+use gametok_abi::Drawable;
 
 include!(concat!(env!("OUT_DIR"), "/main.rs"));
 

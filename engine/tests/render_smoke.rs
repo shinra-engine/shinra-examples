@@ -1,4 +1,4 @@
-use shinra::{
+use shinra_engine::{
     engine::Engine,
     mesh::{Mesh, Vertex},
     scene::{Camera, Projection, Scene},
@@ -222,7 +222,7 @@ fn render_smoke() {
 
     // --- teapot ---
     {
-        let mesh = Arc::new(Mesh::from_obj_file("assets/teapot.obj").expect("load teapot"));
+        let mesh = Arc::new(Mesh::from_obj_file("../assets/teapot.obj").expect("load teapot"));
         let mut scene = Scene::new(perspective([0.0, 1.5, 4.0], [0.0, 1.0, 0.0], 0.1, 100.0));
         scene.spawn_mesh(mesh, glam::Mat4::IDENTITY);
         engine.render(&scene);
@@ -236,7 +236,7 @@ fn render_smoke() {
 
     // --- bunny ---
     {
-        let mesh = Arc::new(Mesh::from_obj_file("assets/bunny.obj").expect("load bunny"));
+        let mesh = Arc::new(Mesh::from_obj_file("../assets/bunny.obj").expect("load bunny"));
         let mut scene = Scene::new(perspective(
             [-0.05, 0.12, 0.25],
             [-0.05, 0.10, 0.0],

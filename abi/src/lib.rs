@@ -15,9 +15,9 @@ pub struct InputFrame {
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Drawable {
-    pub mesh_id: u32,        // index into meshes the game declared at init
-    pub _pad: u32,           // align model to 8 bytes
-    pub model: [f32; 16],    // column-major mat4
+    pub mesh_id: u32,     // index into meshes the game declared at init
+    pub _pad: u32,        // align model to 8 bytes
+    pub model: [f32; 16], // column-major mat4
 }
 
 // FFI symbols every game cdylib must export. Documentation only — Rust does

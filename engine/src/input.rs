@@ -3,10 +3,19 @@ use std::collections::HashSet;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Key {
-    A, D, W, S,
-    Left, Right, Up, Down,
-    J, K,
-    N, Esc, Q,
+    A,
+    D,
+    W,
+    S,
+    Left,
+    Right,
+    Up,
+    Down,
+    J,
+    K,
+    N,
+    Esc,
+    Q,
 }
 
 pub struct Keymap {
@@ -15,31 +24,45 @@ pub struct Keymap {
     quit_pending: bool,
 }
 
-impl Default for Keymap { fn default() -> Self { Self::new() } }
+impl Default for Keymap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Keymap {
-    pub fn new() -> Self { Self { held: HashSet::new(), swipe_pending: false, quit_pending: false } }
-
-    pub fn on_press(&mut self, k: Key) {
-        match k {
-            Key::N   => self.swipe_pending = true,
-            Key::Esc | Key::Q => self.quit_pending = true,
-            _ => { self.held.insert(k); }
+    pub fn new() -> Self {
+        Self {
+            held: HashSet::new(),
+            swipe_pending: false,
+            quit_pending: false,
         }
     }
 
-    pub fn on_release(&mut self, k: Key) { self.held.remove(&k); }
+    pub fn on_press(&mut self, k: Key) {
+        match k {
+            Key::N => self.swipe_pending = true,
+            Key::Esc | Key::Q => self.quit_pending = true,
+            _ => {
+                self.held.insert(k);
+            }
+        }
+    }
+
+    pub fn on_release(&mut self, k: Key) {
+        self.held.remove(&k);
+    }
 
     /// Resolve held keys into an InputFrame the game can consume.
     pub fn frame(&self) -> InputFrame {
         let h = |k| self.held.contains(&k);
         let axis = |neg, pos| (h(pos) as i32 - h(neg) as i32) as f32;
         InputFrame {
-            move_x:      axis(Key::A,    Key::D),
-            move_z:      axis(Key::W,    Key::S),
-            rot_yaw:     axis(Key::Left, Key::Right),
-            rot_pitch:   axis(Key::Down, Key::Up),
-            scale_delta: axis(Key::K,    Key::J),
+            move_x: axis(Key::A, Key::D),
+            move_z: axis(Key::W, Key::S),
+            rot_yaw: axis(Key::Left, Key::Right),
+            rot_pitch: axis(Key::Down, Key::Up),
+            scale_delta: axis(Key::K, Key::J),
         }
     }
 

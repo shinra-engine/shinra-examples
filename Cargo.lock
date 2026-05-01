@@ -452,6 +452,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "game1"
+version = "0.1.0"
+dependencies = [
+ "gametok-abi",
+ "glam",
+ "hecs",
+]
+
+[[package]]
 name = "gametok-abi"
 version = "0.1.0"
 

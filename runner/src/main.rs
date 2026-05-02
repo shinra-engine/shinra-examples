@@ -87,13 +87,10 @@ fn map_key(km: &mut Keymap, k: crossterm::event::KeyEvent) {
         KeyCode::Esc => Key::Esc,
         _ => return,
     };
-    km.on_press(key);
-    // Terminals don't send key-release events; release axis keys immediately
-    // so they contribute only one frame. n/q/Esc are one-shot (consumed by take_*).
-    match key {
-        Key::N | Key::Q | Key::Esc => {}
-        _ => km.on_release(key),
-    }
+    // Terminal raw mode delivers presses only — use `tap`, which contributes
+    // to one frame and self-clears. The previous press+release pair drained
+    // `held` before `frame()` could read it, so axis keys did nothing.
+    km.tap(key);
 }
 
 fn main() -> Result<()> {

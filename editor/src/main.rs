@@ -32,6 +32,13 @@ fn list_objs(dir: &str) -> Vec<String> {
         .collect()
 }
 
+fn push_undo_helper(stack: &mut Vec<scene::Scene>, scene: &scene::Scene) {
+    stack.push(scene.clone());
+    if stack.len() > 100 {
+        stack.remove(0);
+    }
+}
+
 struct App {
     scene: scene::Scene,
     selected_node: Option<usize>,
@@ -43,6 +50,8 @@ struct App {
     brush_tile: Option<u32>,
     quad_mesh: Arc<Mesh>,
     mesh_cache: HashMap<String, Arc<Mesh>>,
+    current_path: Option<std::path::PathBuf>,
+    undo_stack: Vec<scene::Scene>,
 }
 
 impl App {
@@ -99,6 +108,54 @@ impl App {
             brush_tile: None,
             quad_mesh,
             mesh_cache: HashMap::new(),
+            current_path: None,
+            undo_stack: Vec::new(),
+        }
+    }
+
+    fn push_undo(&mut self) {
+        push_undo_helper(&mut self.undo_stack, &self.scene);
+    }
+
+    fn undo(&mut self) {
+        if let Some(prev) = self.undo_stack.pop() {
+            self.scene = prev;
+            self.selected_node = None;
+        }
+    }
+
+    fn open_scene(&mut self, path: &std::path::Path) {
+        match std::fs::read_to_string(path) {
+            Ok(s) => match ron::from_str::<scene::Scene>(&s) {
+                Ok(scene) => {
+                    self.push_undo();
+                    self.scene = scene;
+                    self.current_path = Some(path.to_path_buf());
+                    self.selected_node = None;
+                }
+                Err(e) => eprintln!("[editor] parse error: {e}"),
+            },
+            Err(e) => eprintln!("[editor] read error: {e}"),
+        }
+    }
+
+    fn save_scene(&mut self, path: &std::path::Path) {
+        let pretty = ron::ser::PrettyConfig::default().depth_limit(8);
+        let s = ron::ser::to_string_pretty(&self.scene, pretty).expect("serialize");
+        if let Err(e) = std::fs::write(path, s) {
+            eprintln!("[editor] write failed: {e}");
+        } else {
+            self.current_path = Some(path.to_path_buf());
+        }
+    }
+
+    fn save_as(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("Scene", &["ron"])
+            .set_file_name("untitled.scn.ron")
+            .save_file()
+        {
+            self.save_scene(&path);
         }
     }
 }
@@ -174,17 +231,33 @@ impl eframe::App for App {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("New").clicked() {
+                        self.push_undo();
                         self.scene = scene::Scene::default();
-                        ensure_ground(&mut self.scene);
+                        self.current_path = None;
                         self.selected_node = None;
                         ui.close_menu();
                     }
                     if ui.button("Open…").clicked() {
+                        if let Some(path) = rfd::FileDialog::new()
+                            .add_filter("Scene", &["ron"])
+                            .pick_file()
+                        {
+                            self.open_scene(&path);
+                        }
                         ui.close_menu();
-                    } // wired in slice 6
+                    }
                     if ui.button("Save").clicked() {
+                        if let Some(p) = self.current_path.clone() {
+                            self.save_scene(&p);
+                        } else {
+                            self.save_as();
+                        }
                         ui.close_menu();
-                    } // wired in slice 6
+                    }
+                    if ui.button("Save As…").clicked() {
+                        self.save_as();
+                        ui.close_menu();
+                    }
                     ui.separator();
                     if ui.button("Quit").clicked() {
                         std::process::exit(0);
@@ -201,10 +274,21 @@ impl eframe::App for App {
             tileset: &self.tileset,
             tileset_path: &self.tileset_path,
             brush_tile: &mut self.brush_tile,
+            undo_stack: &mut self.undo_stack,
         };
         DockArea::new(&mut self.dock)
             .style(Style::from_egui(ctx.style().as_ref()))
             .show(ctx, &mut tab_viewer);
+
+        let undo_triggered = ctx.input_mut(|i| {
+            i.consume_shortcut(&egui::KeyboardShortcut::new(
+                egui::Modifiers::COMMAND,
+                egui::Key::Z,
+            ))
+        });
+        if undo_triggered {
+            self.undo();
+        }
     }
 }
 
@@ -230,6 +314,7 @@ struct TabViewer<'a> {
     tileset: &'a scene::Tileset,
     tileset_path: &'a str,
     brush_tile: &'a mut Option<u32>,
+    undo_stack: &'a mut Vec<scene::Scene>,
 }
 
 impl<'a> egui_dock::TabViewer for TabViewer<'a> {
@@ -262,6 +347,16 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
 
                 if !dragging_mesh {
                     if let Some(brush) = *self.brush_tile {
+                        let paint_start = response
+                            .drag_started_by(egui::PointerButton::Primary)
+                            || response.clicked();
+                        let erase_start = response
+                            .drag_started_by(egui::PointerButton::Secondary)
+                            || response.secondary_clicked();
+                        if paint_start || erase_start {
+                            push_undo_helper(self.undo_stack, self.scene);
+                        }
+
                         let painting = (response.is_pointer_button_down_on()
                             && response.dragged())
                             || response.clicked();
@@ -309,6 +404,7 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                             RENDER_W as f32 / RENDER_H as f32,
                             [1.0, 1.0],
                         );
+                        push_undo_helper(self.undo_stack, self.scene);
                         let name = obj_path.rsplit('/').next().unwrap_or("").to_string();
                         self.scene.nodes.push(scene::Node {
                             name: format!("{} ({},{})", name, cx, cy),
@@ -345,43 +441,65 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                     ui.label("(no selection)");
                     return;
                 };
-                let Some(node) = self.scene.nodes.get_mut(idx) else {
+                if self.scene.nodes.get(idx).is_none() {
                     return;
-                };
-                ui.heading(&node.name);
-                ui.text_edit_singleline(&mut node.name);
-                ui.separator();
-                ui.label("Transform");
-                egui::Grid::new("transform").num_columns(2).show(ui, |ui| {
-                    ui.label("Translation");
-                    ui.horizontal(|ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut node.transform.translation[0]).speed(0.1),
-                        );
-                        ui.add(
-                            egui::DragValue::new(&mut node.transform.translation[1]).speed(0.1),
-                        );
-                        ui.add(
-                            egui::DragValue::new(&mut node.transform.translation[2]).speed(0.1),
-                        );
+                }
+
+                let mut drag_started = false;
+                {
+                    let node = &mut self.scene.nodes[idx];
+                    ui.heading(&node.name);
+                    ui.text_edit_singleline(&mut node.name);
+                    ui.separator();
+                    ui.label("Transform");
+                    egui::Grid::new("transform").num_columns(2).show(ui, |ui| {
+                        ui.label("Translation");
+                        ui.horizontal(|ui| {
+                            let r0 = ui.add(
+                                egui::DragValue::new(&mut node.transform.translation[0])
+                                    .speed(0.1),
+                            );
+                            let r1 = ui.add(
+                                egui::DragValue::new(&mut node.transform.translation[1])
+                                    .speed(0.1),
+                            );
+                            let r2 = ui.add(
+                                egui::DragValue::new(&mut node.transform.translation[2])
+                                    .speed(0.1),
+                            );
+                            if r0.drag_started() || r1.drag_started() || r2.drag_started() {
+                                drag_started = true;
+                            }
+                        });
+                        ui.end_row();
+                        ui.label("Rotation (quat xyzw)");
+                        ui.horizontal(|ui| {
+                            for c in &mut node.transform.rotation {
+                                let r = ui.add(egui::DragValue::new(c).speed(0.05));
+                                if r.drag_started() {
+                                    drag_started = true;
+                                }
+                            }
+                        });
+                        ui.end_row();
+                        ui.label("Scale");
+                        ui.horizontal(|ui| {
+                            for c in &mut node.transform.scale {
+                                let r = ui.add(egui::DragValue::new(c).speed(0.1));
+                                if r.drag_started() {
+                                    drag_started = true;
+                                }
+                            }
+                        });
+                        ui.end_row();
                     });
-                    ui.end_row();
-                    ui.label("Rotation (quat xyzw)");
-                    ui.horizontal(|ui| {
-                        for c in &mut node.transform.rotation {
-                            ui.add(egui::DragValue::new(c).speed(0.05));
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("Scale");
-                    ui.horizontal(|ui| {
-                        for c in &mut node.transform.scale {
-                            ui.add(egui::DragValue::new(c).speed(0.1));
-                        }
-                    });
-                    ui.end_row();
-                });
-                if let Some(mesh) = &mut node.mesh {
+                } // node borrow released here
+
+                if drag_started {
+                    push_undo_helper(self.undo_stack, self.scene);
+                }
+
+                if let Some(mesh) = &mut self.scene.nodes[idx].mesh {
                     ui.separator();
                     ui.label("Mesh");
                     ui.text_edit_singleline(&mut mesh.path);

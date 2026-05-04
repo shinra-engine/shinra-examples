@@ -79,13 +79,13 @@ impl WindowPresenter {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: None,
@@ -160,6 +160,7 @@ impl Presenter for WindowPresenter {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                         store: wgpu::StoreOp::Store,

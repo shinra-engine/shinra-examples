@@ -150,15 +150,15 @@ fn readback(engine: &Engine) -> Vec<u8> {
         .device
         .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             texture: &engine.color,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        wgpu::ImageCopyBuffer {
+        wgpu::TexelCopyBufferInfo {
             buffer: &staging,
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(bytes_per_row),
                 rows_per_image: None,
@@ -174,7 +174,7 @@ fn readback(engine: &Engine) -> Vec<u8> {
 
     let slice = staging.slice(..);
     slice.map_async(wgpu::MapMode::Read, |_| {});
-    let _ = engine.device.poll(wgpu::Maintain::Wait);
+    let _ = engine.device.poll(wgpu::PollType::wait_indefinitely());
 
     let mapped = slice.get_mapped_range();
     let mut pixels = Vec::with_capacity((w * h * 4) as usize);

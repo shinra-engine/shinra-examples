@@ -24,7 +24,7 @@ pub struct Engine {
 impl Engine {
     /// Build a headless engine (no window/surface) at the given render size.
     pub fn new(width: u32, height: u32) -> Self {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -37,7 +37,7 @@ impl Engine {
         .expect("failed to find a suitable wgpu adapter");
 
         let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default(), None))
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
                 .expect("failed to create wgpu device");
 
         Self::from_existing(device, queue, width, height)
@@ -114,13 +114,13 @@ impl Engine {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[crate::mesh::Vertex::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,
                     blend: None,
@@ -245,6 +245,7 @@ impl Engine {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &color_view,
                     resolve_target: None,
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.05,

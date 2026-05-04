@@ -43,15 +43,15 @@ impl Presenter for TerminalPresenter {
             });
 
         encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: ctx.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.readback,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(self.pad_bytes_per_row),
                     rows_per_image: None,
@@ -68,7 +68,7 @@ impl Presenter for TerminalPresenter {
 
         let buffer_slice = self.readback.slice(..);
         buffer_slice.map_async(wgpu::MapMode::Read, |_| {});
-        ctx.device.poll(wgpu::Maintain::Wait);
+        let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
 
         let data = buffer_slice.get_mapped_range();
 

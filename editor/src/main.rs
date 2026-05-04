@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use eframe::egui;
@@ -16,9 +17,23 @@ enum PanelKind {
     Palette,
 }
 
+#[derive(Clone, Debug)]
+enum DragPayload {
+    Mesh(String),
+}
+
+fn list_objs(dir: &str) -> Vec<String> {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.ok())
+        .map(|e| e.path().to_string_lossy().into_owned())
+        .filter(|p| p.ends_with(".obj"))
+        .collect()
+}
+
 struct App {
     scene: scene::Scene,
-    #[allow(dead_code)]
     selected_node: Option<usize>,
     dock: DockState<PanelKind>,
     engine: Engine,
@@ -27,6 +42,7 @@ struct App {
     tileset_path: String,
     brush_tile: Option<u32>,
     quad_mesh: Arc<Mesh>,
+    mesh_cache: HashMap<String, Arc<Mesh>>,
 }
 
 impl App {
@@ -82,6 +98,7 @@ impl App {
             tileset_path: default_tileset_path,
             brush_tile: None,
             quad_mesh,
+            mesh_cache: HashMap::new(),
         }
     }
 }
@@ -121,7 +138,7 @@ fn mouse_to_cell(
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Build engine scene from editor scene (one quad per painted cell).
+        // Build engine scene from editor scene (tilemap quads + mesh nodes).
         let mut sc = shinra_engine::scene::Scene::new(camera());
         for node in &self.scene.nodes {
             if let Some(tilemap) = &node.tilemap {
@@ -134,6 +151,22 @@ impl eframe::App for App {
                     sc.spawn_mesh(Arc::clone(&self.quad_mesh), model);
                 }
             }
+            if let Some(mesh_ref) = &node.mesh {
+                if !self.mesh_cache.contains_key(&mesh_ref.path) {
+                    if let Ok(m) = Mesh::from_obj_file(&mesh_ref.path) {
+                        self.mesh_cache.insert(mesh_ref.path.clone(), Arc::new(m));
+                    }
+                }
+                if let Some(mesh) = self.mesh_cache.get(&mesh_ref.path) {
+                    let t = &node.transform;
+                    let model = glam::Mat4::from_scale_rotation_translation(
+                        glam::Vec3::from(t.scale),
+                        glam::Quat::from_array(t.rotation),
+                        glam::Vec3::from(t.translation),
+                    );
+                    sc.spawn_mesh(Arc::clone(mesh), model);
+                }
+            }
         }
         self.engine.render(&sc);
 
@@ -143,6 +176,7 @@ impl eframe::App for App {
                     if ui.button("New").clicked() {
                         self.scene = scene::Scene::default();
                         ensure_ground(&mut self.scene);
+                        self.selected_node = None;
                         ui.close_menu();
                     }
                     if ui.button("Open…").clicked() {
@@ -163,6 +197,7 @@ impl eframe::App for App {
         let mut tab_viewer = TabViewer {
             engine_texture: self.viewport_texture_id,
             scene: &mut self.scene,
+            selected_node: &mut self.selected_node,
             tileset: &self.tileset,
             tileset_path: &self.tileset_path,
             brush_tile: &mut self.brush_tile,
@@ -191,6 +226,7 @@ fn camera() -> shinra_engine::scene::Camera {
 struct TabViewer<'a> {
     engine_texture: egui::TextureId,
     scene: &'a mut scene::Scene,
+    selected_node: &'a mut Option<usize>,
     tileset: &'a scene::Tileset,
     tileset_path: &'a str,
     brush_tile: &'a mut Option<u32>,
@@ -222,46 +258,134 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                     egui::Color32::WHITE,
                 );
 
-                if let Some(brush) = *self.brush_tile {
-                    let painting = (response.is_pointer_button_down_on() && response.dragged())
-                        || response.clicked();
-                    let erasing = response.secondary_clicked()
-                        || (response.is_pointer_button_down_on()
-                            && response.dragged_by(egui::PointerButton::Secondary));
+                let dragging_mesh = egui::DragAndDrop::has_any_payload(ui.ctx());
 
-                    if painting || erasing {
-                        if let Some(p) = response.interact_pointer_pos() {
-                            let cell = mouse_to_cell(
-                                p,
-                                rect,
-                                5.0,
-                                RENDER_W as f32 / RENDER_H as f32,
-                                [1.0, 1.0],
-                            );
-                            let idx = ensure_ground(self.scene);
-                            let tm = self.scene.nodes[idx].tilemap.as_mut().unwrap();
-                            if erasing {
-                                tm.cells.retain(|c| !(c.x == cell.0 && c.y == cell.1));
-                            } else if let Some(c) =
-                                tm.cells.iter_mut().find(|c| c.x == cell.0 && c.y == cell.1)
-                            {
-                                c.tile_id = brush;
-                            } else {
-                                tm.cells.push(scene::Cell {
-                                    x: cell.0,
-                                    y: cell.1,
-                                    tile_id: brush,
-                                });
+                if !dragging_mesh {
+                    if let Some(brush) = *self.brush_tile {
+                        let painting = (response.is_pointer_button_down_on()
+                            && response.dragged())
+                            || response.clicked();
+                        let erasing = response.secondary_clicked()
+                            || (response.is_pointer_button_down_on()
+                                && response.dragged_by(egui::PointerButton::Secondary));
+
+                        if painting || erasing {
+                            if let Some(p) = response.interact_pointer_pos() {
+                                let cell = mouse_to_cell(
+                                    p,
+                                    rect,
+                                    5.0,
+                                    RENDER_W as f32 / RENDER_H as f32,
+                                    [1.0, 1.0],
+                                );
+                                let idx = ensure_ground(self.scene);
+                                let tm = self.scene.nodes[idx].tilemap.as_mut().unwrap();
+                                if erasing {
+                                    tm.cells.retain(|c| !(c.x == cell.0 && c.y == cell.1));
+                                } else if let Some(c) =
+                                    tm.cells.iter_mut().find(|c| c.x == cell.0 && c.y == cell.1)
+                                {
+                                    c.tile_id = brush;
+                                } else {
+                                    tm.cells.push(scene::Cell {
+                                        x: cell.0,
+                                        y: cell.1,
+                                        tile_id: brush,
+                                    });
+                                }
                             }
                         }
                     }
                 }
+
+                // Mesh drop handler
+                if let Some(payload) = response.dnd_release_payload::<DragPayload>() {
+                    let DragPayload::Mesh(obj_path) = (*payload).clone();
+                    if let Some(p) = response.interact_pointer_pos() {
+                        let (cx, cy) = mouse_to_cell(
+                            p,
+                            rect,
+                            5.0,
+                            RENDER_W as f32 / RENDER_H as f32,
+                            [1.0, 1.0],
+                        );
+                        let name = obj_path.rsplit('/').next().unwrap_or("").to_string();
+                        self.scene.nodes.push(scene::Node {
+                            name: format!("{} ({},{})", name, cx, cy),
+                            transform: scene::Transform {
+                                translation: [cx as f32, 0.0, cy as f32],
+                                rotation: [0.0, 0.0, 0.0, 1.0],
+                                scale: [1.0, 1.0, 1.0],
+                            },
+                            mesh: Some(scene::MeshRef { path: obj_path }),
+                            ..Default::default()
+                        });
+                    }
+                }
             }
             PanelKind::SceneTree => {
-                ui.label("(scene tree — wired in slice 5)");
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for (i, node) in self.scene.nodes.iter().enumerate() {
+                        let label = if node.tilemap.is_some() {
+                            format!("[map] {}", node.name)
+                        } else if node.mesh.is_some() {
+                            format!("[mesh] {}", node.name)
+                        } else {
+                            node.name.clone()
+                        };
+                        let selected = *self.selected_node == Some(i);
+                        if ui.selectable_label(selected, label).clicked() {
+                            *self.selected_node = Some(i);
+                        }
+                    }
+                });
             }
             PanelKind::Inspector => {
-                ui.label("(inspector — wired in slice 5)");
+                let Some(idx) = *self.selected_node else {
+                    ui.label("(no selection)");
+                    return;
+                };
+                let Some(node) = self.scene.nodes.get_mut(idx) else {
+                    return;
+                };
+                ui.heading(&node.name);
+                ui.text_edit_singleline(&mut node.name);
+                ui.separator();
+                ui.label("Transform");
+                egui::Grid::new("transform").num_columns(2).show(ui, |ui| {
+                    ui.label("Translation");
+                    ui.horizontal(|ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut node.transform.translation[0]).speed(0.1),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut node.transform.translation[1]).speed(0.1),
+                        );
+                        ui.add(
+                            egui::DragValue::new(&mut node.transform.translation[2]).speed(0.1),
+                        );
+                    });
+                    ui.end_row();
+                    ui.label("Rotation (quat xyzw)");
+                    ui.horizontal(|ui| {
+                        for c in &mut node.transform.rotation {
+                            ui.add(egui::DragValue::new(c).speed(0.05));
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Scale");
+                    ui.horizontal(|ui| {
+                        for c in &mut node.transform.scale {
+                            ui.add(egui::DragValue::new(c).speed(0.1));
+                        }
+                    });
+                    ui.end_row();
+                });
+                if let Some(mesh) = &mut node.mesh {
+                    ui.separator();
+                    ui.label("Mesh");
+                    ui.text_edit_singleline(&mut mesh.path);
+                }
             }
             PanelKind::Palette => {
                 ui.heading("Tileset");
@@ -297,6 +421,21 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                             *self.brush_tile = Some(id);
                         }
                     });
+
+                    ui.separator();
+                    ui.heading("Meshes");
+                    ui.separator();
+                    let assets = list_objs("assets");
+                    for (i, path) in assets.iter().enumerate() {
+                        let name = path.rsplit('/').next().unwrap_or(path.as_str()).to_string();
+                        ui.dnd_drag_source(
+                            egui::Id::new("mesh_drag").with(i),
+                            DragPayload::Mesh(path.clone()),
+                            |ui| {
+                                ui.label(&name);
+                            },
+                        );
+                    }
                 });
             }
         }

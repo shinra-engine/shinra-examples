@@ -479,6 +479,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "game3"
+version = "0.1.0"
+dependencies = [
+ "gametok-abi",
+ "glam",
+ "ron",
+ "scene",
+]
+
+[[package]]
 name = "gametok-abi"
 version = "0.1.0"
 

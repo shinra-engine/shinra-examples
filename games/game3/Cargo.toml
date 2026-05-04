@@ -1,0 +1,13 @@
+[package]
+name = "game3"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gametok-abi = { path = "../../abi" }
+scene       = { path = "../../scene" }
+glam        = "0.28"
+ron         = "0.10"

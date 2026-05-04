@@ -606,6 +606,7 @@ dependencies = [
  "egui-wgpu",
  "egui_dock",
  "glam",
+ "ron",
  "scene",
  "shinra-engine",
  "wgpu",

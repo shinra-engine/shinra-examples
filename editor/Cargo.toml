@@ -16,3 +16,4 @@ shinra-engine = { path = "../engine" }
 scene         = { path = "../scene" }
 wgpu          = "27"
 glam          = "0.28"
+ron           = "0.10"

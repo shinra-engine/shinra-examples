@@ -26,12 +26,59 @@ shinra runner  ←  stable wgpu + wgsl + viuer/window core
 
 See [`design.md`](design.md) for the architecture rationale.
 
+## Prerequisites (Ubuntu / Debian)
+
+```bash
+# Rust toolchain — apt's cargo is too old for Cargo.lock v4
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+. "$HOME/.cargo/env"
+
+# C/C++ toolchain + openh264 build deps (needed by editor-server)
+sudo apt install -y build-essential cmake nasm pkg-config
+
+# Vulkan runtime for headless wgpu rendering (editor-server / editor)
+sudo apt install -y mesa-vulkan-drivers libvulkan1 vulkan-tools
+
+# Node.js 20+ (only needed to build/package the VS Code extension in vscode-ext/)
+# Apt's nodejs on Ubuntu 24.04 is too old for `@vscode/vsce` (undici requires Node >= 20).
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+`runner` alone (terminal mode) only needs the Rust toolchain. The Vulkan stack is required for `editor-server` and the egui `editor` because both rely on a real wgpu adapter; mesa includes lavapipe as a software fallback when no GPU is present. Node.js is only required if you intend to build the VS Code extension.
+
 ## Run
 
 ```bash
 cargo build                        # builds engine, runner, both games
 cargo run -p runner                # cycles libgame*.so in target/debug
+cargo run -p editor-server         # HTTP :5812 + WS :5813 (H.264 stream)
 ```
+
+### VS Code extension (live viewport)
+
+`editor-server` exposes the rendered scene as an H.264 WebSocket stream that the
+extension in `vscode-ext/` decodes inside a VS Code webview.
+
+```bash
+cd vscode-ext
+npm install
+npm run compile                    # tsc → out/extension.js
+```
+
+Then either:
+
+- **Dev (Extension Development Host):** `code vscode-ext`, press **F5**. A second
+  VS Code window opens with the extension loaded. Run command palette
+  (`Ctrl+Shift+P`) → **Shinra: Open Viewport**.
+- **Permanent install:**
+  ```bash
+  npm run package                              # produces shinra-editor-*.vsix
+  code --install-extension shinra-editor-*.vsix
+  ```
+
+`editor-server` must already be running — the extension is just a viewer/client
+talking to `:5812` (HTTP scene API) and `:5813` (WS frame stream).
 
 | Key | Action |
 |---|---|

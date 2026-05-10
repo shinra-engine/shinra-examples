@@ -12,7 +12,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use openh264::{
     encoder::{Encoder, EncoderConfig, FrameType},
     formats::YUVBuffer,
@@ -22,6 +22,7 @@ use scene::Scene as SceneDoc;
 use serde::Deserialize;
 use shinra_engine::{
     engine::Engine,
+    mesh::Mesh,
     scene::{orbit_eye, Camera, Projection, Scene as EngineScene},
 };
 use tokio::sync::{watch, RwLock};
@@ -112,6 +113,8 @@ fn rgba_to_yuv(pixels: &[u8], width: u32, height: u32) -> YUVBuffer {
 fn render_loop(tx: watch::Sender<Frame>) -> Result<()> {
     let mut engine = Engine::new(WIDTH, HEIGHT);
 
+    let bunny: Arc<Mesh> = Arc::new(Mesh::from_obj_file("assets/bunny.obj")?);
+
     // Persistent readback buffer (CPU-visible, aligned rows).
     let unpadded_bpr = WIDTH * 4;
     let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
@@ -129,9 +132,16 @@ fn render_loop(tx: watch::Sender<Frame>) -> Result<()> {
     let mut encoder = Encoder::with_api_config(OpenH264API::from_source(), config)?;
 
     let start = Instant::now();
+    let mut frame_idx: u32 = 0;
 
     loop {
         let t = start.elapsed().as_secs_f32();
+
+        // Force a keyframe every ~1s so newly-connected WS clients can sync
+        // (watch::channel retains only the latest frame).
+        if frame_idx % 30 == 0 {
+            encoder.force_intra_frame();
+        }
 
         let camera = Camera {
             eye: orbit_eye(t * 0.5, 3.0, 1.5),
@@ -145,7 +155,9 @@ fn render_loop(tx: watch::Sender<Frame>) -> Result<()> {
             },
         };
 
-        engine.render(&EngineScene::new(camera));
+        let mut scene = EngineScene::new(camera);
+        scene.spawn_mesh(bunny.clone(), Mat4::IDENTITY);
+        engine.render(&scene);
 
         // GPU → CPU readback.
         let mut enc_cmd = engine
@@ -198,6 +210,7 @@ fn render_loop(tx: watch::Sender<Frame>) -> Result<()> {
         let h264_bytes = bitstream.to_vec();
 
         let _ = tx.send(Arc::new((is_key, h264_bytes)));
+        frame_idx = frame_idx.wrapping_add(1);
 
         // ~30 fps cap.
         std::thread::sleep(std::time::Duration::from_millis(33));

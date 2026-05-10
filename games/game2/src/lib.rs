@@ -12,7 +12,9 @@ thread_local! {
 }
 
 #[no_mangle]
-pub extern "C" fn meshes_count() -> u32 { MESH_PATHS.len() as u32 }
+pub extern "C" fn meshes_count() -> u32 {
+    MESH_PATHS.len() as u32
+}
 
 #[no_mangle]
 pub extern "C" fn meshes_path(i: u32, out: *mut u8, cap: u32) -> u32 {
@@ -23,7 +25,9 @@ pub extern "C" fn meshes_path(i: u32, out: *mut u8, cap: u32) -> u32 {
     let bytes = path.as_bytes();
     let n = bytes.len().min(cap as usize);
     if !out.is_null() && n > 0 {
-        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, n); }
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, n);
+        }
     }
     n as u32
 }

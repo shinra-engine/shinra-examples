@@ -1,12 +1,5 @@
 # shinra
 
-## LatticeCast PM
-
-- URL: `http://localhost:13491`
-- Bot user: `shinra` (`Authorization: Bearer shinra`)
-- Workspace: `shinra` (`d85835b6-117b-4008-82b4-dd9ebd8ee7cc`)
-- Table: `shinra-engine`
-
 ## Layout
 
 - `design.md` — project design notes

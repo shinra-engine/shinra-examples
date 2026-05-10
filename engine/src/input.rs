@@ -19,8 +19,8 @@ pub enum Key {
 }
 
 pub struct Keymap {
-    held: HashSet<Key>,    // pressed and not yet released — meaningful in window mode
-    tapped: HashSet<Key>,  // one-shot impulses — terminal mode never sends key-up
+    held: HashSet<Key>,   // pressed and not yet released — meaningful in window mode
+    tapped: HashSet<Key>, // one-shot impulses — terminal mode never sends key-up
     swipe_pending: bool,
     quit_pending: bool,
 }

@@ -1,3 +1,5 @@
+*.patch
+
 target/
 .tmp/
 /.browser/
@@ -5,3 +7,5 @@ target/
 *.swo
 .DS_Store
 .claude/
+vscode-ext/out/
+vscode-ext/node_modules/

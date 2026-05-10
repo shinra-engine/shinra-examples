@@ -20,6 +20,7 @@ enum PanelKind {
 #[derive(Clone, Debug)]
 enum DragPayload {
     Mesh(String),
+    Tile(u32),
 }
 
 fn list_objs(dir: &str) -> Vec<String> {
@@ -69,11 +70,8 @@ impl App {
 
         let view = engine.color.create_view(&Default::default());
         let mut renderer = render_state.renderer.write();
-        let viewport_texture_id = renderer.register_native_texture(
-            &engine.device,
-            &view,
-            wgpu::FilterMode::Linear,
-        );
+        let viewport_texture_id =
+            renderer.register_native_texture(&engine.device, &view, wgpu::FilterMode::Linear);
 
         let mut dock = DockState::new(vec![PanelKind::Viewport]);
         let surface = dock.main_surface_mut();
@@ -90,9 +88,8 @@ impl App {
             .and_then(|s| ron::from_str(&s).ok())
             .unwrap_or_default();
 
-        let quad_mesh = Arc::new(
-            Mesh::from_obj_file("assets/quad.obj").expect("assets/quad.obj missing"),
-        );
+        let quad_mesh =
+            Arc::new(Mesh::from_obj_file("assets/quad.obj").expect("assets/quad.obj missing"));
 
         let mut scene = scene::Scene::default();
         ensure_ground(&mut scene);
@@ -177,20 +174,32 @@ fn ensure_ground(sc: &mut scene::Scene) -> usize {
     sc.nodes.len() - 1
 }
 
-fn mouse_to_cell(
-    p: egui::Pos2,
-    rect: egui::Rect,
-    half_h: f32,
-    aspect: f32,
-    tile_size: [f32; 2],
-) -> (i32, i32) {
+/// Unproject a viewport pixel to a world-space XZ position on the Y=0 ground plane
+/// using the editor camera's inverse view-projection matrix.
+fn viewport_to_world(p: egui::Pos2, rect: egui::Rect) -> glam::Vec2 {
+    let inv_vp = camera().view_proj().inverse();
+    // egui Y increases downward; wgpu NDC Y increases upward — negate
     let ndc_x = (p.x - rect.center().x) / (rect.width() * 0.5);
-    let ndc_y = (p.y - rect.center().y) / (rect.height() * 0.5);
-    let world_x = ndc_x * half_h * aspect;
-    let world_z = ndc_y * half_h;
-    let cell_x = (world_x / tile_size[0]).round() as i32;
-    let cell_y = (world_z / tile_size[1]).round() as i32;
-    (cell_x, cell_y)
+    let ndc_y = -((p.y - rect.center().y) / (rect.height() * 0.5));
+    let p_near = inv_vp * glam::Vec4::new(ndc_x, ndc_y, 0.0, 1.0);
+    let p_far = inv_vp * glam::Vec4::new(ndc_x, ndc_y, 1.0, 1.0);
+    let near = p_near.truncate() / p_near.w;
+    let far = p_far.truncate() / p_far.w;
+    let dir = (far - near).normalize();
+    let t = if dir.y.abs() > 1e-6 {
+        -near.y / dir.y
+    } else {
+        0.0
+    };
+    let hit = near + dir * t;
+    glam::Vec2::new(hit.x, hit.z)
+}
+
+fn world_to_cell(world: glam::Vec2, tile_size: [f32; 2]) -> (i32, i32) {
+    (
+        (world.x / tile_size[0]).round() as i32,
+        (world.y / tile_size[1]).round() as i32,
+    )
 }
 
 impl eframe::App for App {
@@ -228,14 +237,14 @@ impl eframe::App for App {
         self.engine.render(&sc);
 
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("New").clicked() {
                         self.push_undo();
                         self.scene = scene::Scene::default();
                         self.current_path = None;
                         self.selected_node = None;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Open…").clicked() {
                         if let Some(path) = rfd::FileDialog::new()
@@ -244,7 +253,7 @@ impl eframe::App for App {
                         {
                             self.open_scene(&path);
                         }
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Save").clicked() {
                         if let Some(p) = self.current_path.clone() {
@@ -252,11 +261,11 @@ impl eframe::App for App {
                         } else {
                             self.save_as();
                         }
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Save As…").clicked() {
                         self.save_as();
-                        ui.close_menu();
+                        ui.close();
                     }
                     ui.separator();
                     if ui.button("Quit").clicked() {
@@ -334,8 +343,7 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
         match tab {
             PanelKind::Viewport => {
                 let avail = ui.available_size();
-                let (rect, response) =
-                    ui.allocate_exact_size(avail, egui::Sense::click_and_drag());
+                let (rect, response) = ui.allocate_exact_size(avail, egui::Sense::click_and_drag());
                 ui.painter().image(
                     self.engine_texture,
                     rect,
@@ -343,22 +351,19 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                     egui::Color32::WHITE,
                 );
 
-                let dragging_mesh = egui::DragAndDrop::has_any_payload(ui.ctx());
+                let has_drag_payload = egui::DragAndDrop::has_any_payload(ui.ctx());
 
-                if !dragging_mesh {
+                if !has_drag_payload {
                     if let Some(brush) = *self.brush_tile {
-                        let paint_start = response
-                            .drag_started_by(egui::PointerButton::Primary)
+                        let paint_start = response.drag_started_by(egui::PointerButton::Primary)
                             || response.clicked();
-                        let erase_start = response
-                            .drag_started_by(egui::PointerButton::Secondary)
+                        let erase_start = response.drag_started_by(egui::PointerButton::Secondary)
                             || response.secondary_clicked();
                         if paint_start || erase_start {
                             push_undo_helper(self.undo_stack, self.scene);
                         }
 
-                        let painting = (response.is_pointer_button_down_on()
-                            && response.dragged())
+                        let painting = (response.is_pointer_button_down_on() && response.dragged())
                             || response.clicked();
                         let erasing = response.secondary_clicked()
                             || (response.is_pointer_button_down_on()
@@ -366,13 +371,7 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
 
                         if painting || erasing {
                             if let Some(p) = response.interact_pointer_pos() {
-                                let cell = mouse_to_cell(
-                                    p,
-                                    rect,
-                                    5.0,
-                                    RENDER_W as f32 / RENDER_H as f32,
-                                    [1.0, 1.0],
-                                );
+                                let cell = world_to_cell(viewport_to_world(p, rect), [1.0, 1.0]);
                                 let idx = ensure_ground(self.scene);
                                 let tm = self.scene.nodes[idx].tilemap.as_mut().unwrap();
                                 if erasing {
@@ -393,29 +392,42 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                     }
                 }
 
-                // Mesh drop handler
+                // Drop handler: Mesh placement or Tile painting via drag-drop
                 if let Some(payload) = response.dnd_release_payload::<DragPayload>() {
-                    let DragPayload::Mesh(obj_path) = (*payload).clone();
                     if let Some(p) = response.interact_pointer_pos() {
-                        let (cx, cy) = mouse_to_cell(
-                            p,
-                            rect,
-                            5.0,
-                            RENDER_W as f32 / RENDER_H as f32,
-                            [1.0, 1.0],
-                        );
+                        let world = viewport_to_world(p, rect);
+                        let (cx, cy) = world_to_cell(world, [1.0, 1.0]);
                         push_undo_helper(self.undo_stack, self.scene);
-                        let name = obj_path.rsplit('/').next().unwrap_or("").to_string();
-                        self.scene.nodes.push(scene::Node {
-                            name: format!("{} ({},{})", name, cx, cy),
-                            transform: scene::Transform {
-                                translation: [cx as f32, 0.0, cy as f32],
-                                rotation: [0.0, 0.0, 0.0, 1.0],
-                                scale: [1.0, 1.0, 1.0],
-                            },
-                            mesh: Some(scene::MeshRef { path: obj_path }),
-                            ..Default::default()
-                        });
+                        match (*payload).clone() {
+                            DragPayload::Mesh(obj_path) => {
+                                let name = obj_path.rsplit('/').next().unwrap_or("").to_string();
+                                self.scene.nodes.push(scene::Node {
+                                    name: format!("{} ({},{})", name, cx, cy),
+                                    transform: scene::Transform {
+                                        translation: [cx as f32, 0.0, cy as f32],
+                                        rotation: [0.0, 0.0, 0.0, 1.0],
+                                        scale: [1.0, 1.0, 1.0],
+                                    },
+                                    mesh: Some(scene::MeshRef { path: obj_path }),
+                                    ..Default::default()
+                                });
+                            }
+                            DragPayload::Tile(tile_id) => {
+                                let idx = ensure_ground(self.scene);
+                                let tm = self.scene.nodes[idx].tilemap.as_mut().unwrap();
+                                if let Some(c) =
+                                    tm.cells.iter_mut().find(|c| c.x == cx && c.y == cy)
+                                {
+                                    c.tile_id = tile_id;
+                                } else {
+                                    tm.cells.push(scene::Cell {
+                                        x: cx,
+                                        y: cy,
+                                        tile_id,
+                                    });
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -456,16 +468,13 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                         ui.label("Translation");
                         ui.horizontal(|ui| {
                             let r0 = ui.add(
-                                egui::DragValue::new(&mut node.transform.translation[0])
-                                    .speed(0.1),
+                                egui::DragValue::new(&mut node.transform.translation[0]).speed(0.1),
                             );
                             let r1 = ui.add(
-                                egui::DragValue::new(&mut node.transform.translation[1])
-                                    .speed(0.1),
+                                egui::DragValue::new(&mut node.transform.translation[1]).speed(0.1),
                             );
                             let r2 = ui.add(
-                                egui::DragValue::new(&mut node.transform.translation[2])
-                                    .speed(0.1),
+                                egui::DragValue::new(&mut node.transform.translation[2]).speed(0.1),
                             );
                             if r0.drag_started() || r1.drag_started() || r2.drag_started() {
                                 drag_started = true;
@@ -519,19 +528,28 @@ impl<'a> egui_dock::TabViewer for TabViewer<'a> {
                                 (tile.color[2] * 255.0) as u8,
                             );
                             let selected = *self.brush_tile == Some(tile.id);
-                            let size = egui::vec2(40.0, 40.0);
-                            let (rect, resp) =
-                                ui.allocate_exact_size(size, egui::Sense::click());
-                            ui.painter().rect_filled(rect, 4.0, color);
-                            if selected {
-                                ui.painter().rect_stroke(
-                                    rect,
-                                    4.0,
-                                    egui::Stroke::new(2.0, egui::Color32::WHITE),
-                                    egui::StrokeKind::Inside,
-                                );
-                            }
-                            if resp.on_hover_text(tile.name.as_str()).clicked() {
+                            // Wrap each tile square as a drag source so it can be
+                            // dragged to the viewport as well as clicked to set brush.
+                            let inner = ui.dnd_drag_source(
+                                egui::Id::new("tile_drag").with(tile.id),
+                                DragPayload::Tile(tile.id),
+                                |ui| {
+                                    let size = egui::vec2(40.0, 40.0);
+                                    let (tile_rect, resp) =
+                                        ui.allocate_exact_size(size, egui::Sense::click());
+                                    ui.painter().rect_filled(tile_rect, 4.0, color);
+                                    if selected {
+                                        ui.painter().rect_stroke(
+                                            tile_rect,
+                                            4.0,
+                                            egui::Stroke::new(2.0, egui::Color32::WHITE),
+                                            egui::StrokeKind::Inside,
+                                        );
+                                    }
+                                    resp
+                                },
+                            );
+                            if inner.inner.on_hover_text(tile.name.as_str()).clicked() {
                                 new_brush = Some(tile.id);
                             }
                         }

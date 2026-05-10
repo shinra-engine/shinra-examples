@@ -104,9 +104,21 @@ mod tests {
                         tileset: "tilesets/town.tres.ron".into(),
                         tile_size: [1.0, 1.0],
                         cells: vec![
-                            Cell { x: 0, y: 0, tile_id: 1 },
-                            Cell { x: 1, y: 0, tile_id: 1 },
-                            Cell { x: 2, y: 0, tile_id: 5 },
+                            Cell {
+                                x: 0,
+                                y: 0,
+                                tile_id: 1,
+                            },
+                            Cell {
+                                x: 1,
+                                y: 0,
+                                tile_id: 1,
+                            },
+                            Cell {
+                                x: 2,
+                                y: 0,
+                                tile_id: 5,
+                            },
                         ],
                     }),
                     components: vec![],
@@ -118,7 +130,9 @@ mod tests {
                         translation: [3.0, 0.0, 2.0],
                         ..Default::default()
                     },
-                    mesh: Some(MeshRef { path: "assets/bunny.obj".into() }),
+                    mesh: Some(MeshRef {
+                        path: "assets/bunny.obj".into(),
+                    }),
                     tilemap: None,
                     components: vec![ComponentValue::PlayerControlled],
                     children: vec![],
@@ -131,9 +145,21 @@ mod tests {
         Tileset {
             name: "town_tiles".into(),
             tiles: vec![
-                Tile { id: 1, name: "grass".into(), color: [0.4, 0.8, 0.3] },
-                Tile { id: 2, name: "river".into(), color: [0.2, 0.5, 0.9] },
-                Tile { id: 5, name: "path".into(),  color: [0.7, 0.6, 0.4] },
+                Tile {
+                    id: 1,
+                    name: "grass".into(),
+                    color: [0.4, 0.8, 0.3],
+                },
+                Tile {
+                    id: 2,
+                    name: "river".into(),
+                    color: [0.2, 0.5, 0.9],
+                },
+                Tile {
+                    id: 5,
+                    name: "path".into(),
+                    color: [0.7, 0.6, 0.4],
+                },
             ],
         }
     }
@@ -173,7 +199,10 @@ mod tests {
         // `children` fields should not appear when None/empty.
         assert!(!s.contains("mesh:"), "mesh should be skipped: {s}");
         assert!(!s.contains("tilemap:"), "tilemap should be skipped: {s}");
-        assert!(!s.contains("components:"), "components should be skipped: {s}");
+        assert!(
+            !s.contains("components:"),
+            "components should be skipped: {s}"
+        );
         assert!(!s.contains("children:"), "children should be skipped: {s}");
     }
 }

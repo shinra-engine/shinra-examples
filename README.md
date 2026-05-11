@@ -23,8 +23,37 @@ shinra-examples/
 │   ├── game1/   bunny   (.hom)
 │   ├── game2/   teapot  (.hom)
 │   └── game3/   .hom example using `scene`
-└── assets/      bunny.obj, teapot.obj, ...
+├── assets/      bunny.obj, teapot.obj, scenes/, tilesets/
+└── docker-compose.yml   launches the editor-server with this folder as /game
 ```
+
+## Run the editor-server (VS Code viewport)
+
+The editor-server renders this project's scenes as an H.264 stream consumed by
+the Shinra VS Code extension. It runs in Docker so it doesn't need a local
+Rust toolchain or GPU.
+
+```bash
+# One-time: build the engine image (from the sibling core repo)
+cd ../shinra-engine-core
+docker build -t shinra-editor-server .
+
+# Each session: launch the server from this folder
+cd -
+docker compose up
+```
+
+The compose file bind-mounts `.` as `/game` and starts the server at HTTP
+`:5812` + WS `:5813`. Asset paths inside `assets/scenes/*.scn.ron` resolve
+relative to this directory. Edit `SCENE_PATH` in `docker-compose.yml` to load
+a different scene on startup.
+
+The container runs as UID 1000 (the typical first Linux user) so any scenes
+saved back from VS Code stay owned by you, not root. If your UID isn't 1000,
+adjust the `user:` line in `docker-compose.yml`.
+
+Open `shinra-examples/` in VS Code, run **Shinra: Open Viewport** from the
+command palette, and the live render appears in a webview.
 
 ## Build
 

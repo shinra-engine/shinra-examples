@@ -8,6 +8,6 @@ build = "build.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-gametok-abi = { path = "../../abi" }
+gametok-abi = { path = "../../../shinra-engine-core/abi" }
 hecs = "0.10"
 glam = "0.28"

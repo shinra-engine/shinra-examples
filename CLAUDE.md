@@ -2,8 +2,10 @@
 
 ## Layout
 
-- `design.md` — project design notes
-- `lattice-cast/` → symlink to `/home/posetmage/download/github/LatticeCast`
+- `games/` — sample cdylib games (game1 bunny, game2 teapot, game3)
+- `assets/` — `.obj` meshes loaded by the games
+- Engine code lives in the sibling repo `shinra-engine-core/`. Game `Cargo.toml`s
+  reach `abi/` and `scene/` via `../../../shinra-engine-core/{abi,scene}` path deps.
 
 ## Repo hygiene — `.gitignore`
 

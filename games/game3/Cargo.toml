@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-gametok-abi = { path = "../../abi" }
-scene       = { path = "../../scene" }
+gametok-abi = { path = "../../../shinra-engine-core/abi" }
+scene       = { path = "../../../shinra-engine-core/scene" }
 glam        = "0.28"
 ron         = "0.10"

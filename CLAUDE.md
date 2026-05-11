@@ -2,24 +2,29 @@
 
 ## Layout
 
-- `games/` — sample cdylib games (game1 bunny, game2 teapot, game3)
-- `assets/` — `.obj` meshes loaded by the games
-- Engine code lives in the sibling repo `shinra-engine-core/`. Game `Cargo.toml`s
-  reach `abi/` and `scene/` via `../../../shinra-engine-core/{abi,scene}` path deps.
+- `assets/games/<name>/{scene.ron,tscn.ron}` — game data the editor-server
+  scans and cycles between (`n` keypress in the viewport).
+- `assets/{bunny,teapot,quad}.obj`, `assets/tilesets/`, `assets/scenes/` —
+  meshes and shared assets referenced by the games.
+- `docker-compose.yml` — runs `shinra-editor-server` (built from
+  `../shinra-engine-core`) with this folder mounted at `/game`.
+
+This repo holds **no Rust code**. Engine, runner, editor, and editor-server
+all live in the sibling repo `shinra-engine-core/`. The runner there still
+expects cdylib `.so` files at `target/debug/libgame*.so`; making it consume
+`assets/games/*/scene.ron` is a follow-up in that repo, not here.
 
 ## Repo hygiene — `.gitignore`
 
 Workers commit with `git add -A`, so anything generated will be staged.
 The project root must have a `.gitignore` excluding at least:
 
-- `/target/` — Cargo build output (large)
+- `/target/` — Cargo build output (large; shouldn't appear here anymore but
+  the rule stays as a safety net)
 - `.tmp/` — local scratch (worker docs, claude-bot output)
 - `/.browser/` — Playwright snapshots
 - `*.swp`, `.DS_Store`, editor cruft
 
-`Cargo.lock` stays tracked (shinra has binaries).
-
 If a worker finds `.gitignore` missing or incomplete, stop and flag the
 ticket as `debugging` — do NOT silently regenerate it inside an unrelated
-ticket. Creating `.gitignore` is owned by the ticket that bootstraps the
-Cargo manifest, not by per-feature work.
+ticket.

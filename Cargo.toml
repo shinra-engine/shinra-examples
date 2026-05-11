@@ -1,3 +1,0 @@
-[workspace]
-resolver = "2"
-members = ["games/game1", "games/game2", "games/game3"]

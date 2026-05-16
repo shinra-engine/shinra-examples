@@ -11,8 +11,9 @@ services:
     image: shinra-editor-server
     user: "1000:1000"  # general first user uid
     ports:
-      - "5812:5812"
-      - "5813:5813"
+      - "5812:5812"  # HTTP scene API
+      - "5813:5813"  # game viewport WS (H.264)
+      - "5814:5814"  # editor viewport WS (H.264)
     volumes:
       - .:/game
       # Engine source mounted so the AI / devs can edit it from inside the

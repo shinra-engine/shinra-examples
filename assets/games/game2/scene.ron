@@ -1,5 +1,16 @@
 (
     name: "teapot",
+    camera: Some((
+        eye: (0.0, 1.5, 4.0),
+        target: (0.0, 1.0, 0.0),
+        up: (0.0, 1.0, 0.0),
+        projection: Perspective(
+            fov_y_degrees: 60.0,
+            aspect: 1.3333334,
+            znear: 0.1,
+            zfar: 100.0,
+        ),
+    )),
     nodes: [
         (
             name: "teapot",

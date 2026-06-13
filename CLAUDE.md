@@ -4,8 +4,8 @@
 
 - `assets/games/<name>/{scene.ron,tscn.ron}` — game data the editor-server
   scans and cycles between (`n` keypress in the viewport).
-- `assets/{bunny,teapot,quad}.obj`, `assets/tilesets/`, `assets/scenes/` —
-  meshes and shared assets referenced by the games.
+- `assets/obj/` (meshes), `assets/images/` (sprite sheets),
+  `assets/tilesets/`, `assets/scenes/` — shared assets referenced by the games.
 - `docker-compose.yml` — runs `shinra-editor-server` (built from
   `../shinra-engine-core`) with this folder mounted at `/game`.
 

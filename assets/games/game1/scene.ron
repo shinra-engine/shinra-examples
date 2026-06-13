@@ -19,7 +19,7 @@
                 rotation: (0.0, 0.0, 0.0, 1.0),
                 scale: (1.0, 1.0, 1.0),
             ),
-            mesh: Some((path: "assets/bunny.obj")),
+            mesh: Some((path: "assets/obj/bunny.obj")),
         ),
     ],
 )

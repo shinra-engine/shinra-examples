@@ -19,18 +19,21 @@ shinra-engine/
 shinra-examples/
 ├── assets/
 │   ├── games/
-│   │   ├── game1/   scene.ron + tscn.ron — bunny scene
-│   │   └── game2/   scene.ron + tscn.ron — teapot scene
-│   ├── bunny.obj, teapot.obj, quad.obj
+│   │   ├── game1/   scene.ron — bunny scene
+│   │   ├── game2/   scene.ron — teapot scene
+│   │   └── game3/   scene.ron — dino-run mini game (sprites + run mode)
+│   ├── obj/         bunny.obj, teapot.obj, quad.obj, quad_xy.obj
+│   ├── images/      2x2_grid.png sprite sheet (dino, tree, cloud, bird)
 │   ├── scenes/      legacy single-scene `.scn.ron` files
 │   └── tilesets/    `.tres.ron` tilesets
 └── docker-compose.yml   launches the editor-server with this folder as /game
 ```
 
-A "game" under `assets/games/<name>/` is just two RON files:
+A "game" under `assets/games/<name>/` is one RON file:
 
-- `scene.ron` — a `scene::Scene` (nodes, transforms, mesh refs, tilemaps)
-- `tscn.ron` — a `scene::Camera` (eye, target, up, perspective/orthographic)
+- `scene.ron` — a `scene::Scene`: nodes with transforms, mesh refs
+  (`assets/obj/...`), sprites (`assets/images/...` sheet + grid cell),
+  tilemaps, behavior components, and an optional embedded camera.
 
 The editor-server scans this directory at startup, loads the first one, and
 **`n`** in the viewport cycles to the next.

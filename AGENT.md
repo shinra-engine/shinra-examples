@@ -2,17 +2,15 @@
 
 ## Layout
 
-- `assets/games/<name>/{scene.ron,tscn.ron}` — game data the editor-server
-  scans and cycles between (`n` keypress in the viewport).
+- `assets/games/<name>/scene.ron` — game data the TUI scans and cycles
+  between (`n` keypress in the viewport).
 - `assets/obj/` (meshes), `assets/images/` (sprite sheets),
   `assets/tilesets/`, `assets/scenes/` — shared assets referenced by the games.
-- `docker-compose.yml` — runs `shinra-editor-server` (built from
-  `../shinra-engine-core`) with this folder mounted at `/game`.
 
-This repo holds **no Rust code**. Engine, runner, editor, and editor-server
-all live in the sibling repo `shinra-engine-core/`. The runner there still
-expects cdylib `.so` files at `target/debug/libgame*.so`; making it consume
-`assets/games/*/scene.ron` is a follow-up in that repo, not here.
+This repo holds **no Rust code**. The engine, runner, and TUI live in the
+sibling repo `shinra-engine/`. Run the TUI from this directory with
+`cargo run -p tui --manifest-path ../shinra-engine/Cargo.toml` so relative
+asset paths resolve here.
 
 ## Repo hygiene — `.gitignore`
 

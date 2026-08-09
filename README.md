@@ -1,15 +1,14 @@
 ## shinra-examples
 
-Sample game data + a docker-compose for the
-[`shinra-engine-core`](../shinra-engine-core/) editor-server. This repo holds
-no Rust code — games are pure data (`scene.ron` + `tscn.ron`) and shared
-mesh/tile assets.
+Sample game data for [`shinra-engine`](../shinra-engine/). This repo holds no
+Rust code — games are pure data (`scene.ron`) plus shared mesh, image, and tile
+assets.
 
 Clone both repos as siblings:
 
 ```
 shinra-engine/
-├── shinra-engine-core/
+├── shinra-engine/
 └── shinra-examples/      ← you are here
 ```
 
@@ -21,12 +20,12 @@ shinra-examples/
 │   ├── games/
 │   │   ├── game1/   scene.ron — bunny scene
 │   │   ├── game2/   scene.ron — teapot scene
-│   │   └── game3/   scene.ron — dino-run mini game (sprites + run mode)
+│   │   ├── game3/   scene.ron — dino-run mini game (sprites + run mode)
+│   │   └── game4/   scene.ron — galgame dialogue (Space advances text)
 │   ├── obj/         bunny.obj, teapot.obj, quad.obj, quad_xy.obj
 │   ├── images/      2x2_grid.png sprite sheet (dino, tree, cloud, bird)
 │   ├── scenes/      legacy single-scene `.scn.ron` files
 │   └── tilesets/    `.tres.ron` tilesets
-└── docker-compose.yml   launches the editor-server with this folder as /game
 ```
 
 A "game" under `assets/games/<name>/` is one RON file:
@@ -35,46 +34,36 @@ A "game" under `assets/games/<name>/` is one RON file:
   (`assets/obj/...`), sprites (`assets/images/...` sheet + grid cell),
   tilemaps, behavior components, and an optional embedded camera.
 
-The editor-server scans this directory at startup, loads the first one, and
-**`n`** in the viewport cycles to the next.
+The TUI scans this directory at startup, loads the first game, and **`n`** in
+the viewport cycles to the next.
 
-## Run the editor-server (VS Code viewport)
+## Run the TUI
 
-The editor-server renders the active game as an H.264 stream consumed by the
-Shinra VS Code extension. It runs in Docker so no local Rust toolchain or GPU
-is required on this side.
+Run the engine from this directory so relative asset paths resolve against the
+examples project:
 
 ```bash
-# One-time: build the engine image (from the sibling core repo)
-cd ../shinra-engine-core
-docker build -t shinra-editor-server .
-
-# Each session: launch the server from this folder
-cd -
-docker compose up
+cargo run -p tui --manifest-path ../shinra-engine/Cargo.toml
 ```
 
-The compose file bind-mounts `.` as `/game`, mounts `~/.cargo` so the dev
-image reuses the host's crates cache, and binds HTTP `:5812` + WS `:5813`.
+To keep it in a dedicated tmux session:
 
-The container runs as UID 1000 so files saved back stay owned by you, not
-root. If your UID isn't 1000, edit the `user:` line in `docker-compose.yml`.
-
-Open `shinra-examples/` in VS Code, run **Shinra: Open Viewport** from the
-command palette — the live render appears in a webview.
+```bash
+tmux new-session -s sh-run -c "$PWD" \
+  'cargo run -p tui --manifest-path ../shinra-engine/Cargo.toml'
+```
 
 | Key | Action |
 |---|---|
-| Arrow keys | move node 0 in screen-X / screen-Y |
-| **n** | cycle to next game |
+| **r** | toggle running mode |
+| **Space** | next dialogue line, or jump while running |
+| **n** | cycle to the next game |
+| **q** / **Esc** | quit |
 
 ## Adding a new game
 
 ```bash
 mkdir -p assets/games/game3
-cp assets/games/game1/{scene.ron,tscn.ron} assets/games/game3/
-# edit the new scene.ron + tscn.ron
-docker compose restart        # editor-server picks up the new directory
+cp assets/games/game1/scene.ron assets/games/game3/
+# edit the new scene.ron, then restart the TUI to rescan game directories
 ```
-
-No build step — `assets/games/*` is rescanned every container start.

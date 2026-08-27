@@ -1,0 +1,20 @@
+// Hitting an obstacle restarts the run. The hitbox is the entity's Collider,
+// never its sprite: the game plays identically under every View.
+
+use std
+use engine
+
+@derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)
+Obstacle := struct {}
+
+// Singleton component: attach to one entity to hold the run's score.
+@derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)
+Run := struct { crashes: int }
+
+obstacle_system := (run::Run) -> _ {
+  hits := overlapping("PlayerControlled", "Obstacle")
+  if (len(hits) > 0) {
+    run.crashes := run.crashes + 1
+    restart()
+  }
+}

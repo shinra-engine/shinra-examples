@@ -1,0 +1,29 @@
+// Player: gravity and a one-shot jump. Every constant here was previously
+// hard-coded in the IDE; it belongs to this game and nothing else.
+
+use std
+use engine
+
+@derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)
+PlayerControlled := struct {
+  gravity:       float,
+  jump_velocity: float,
+  ground_y:      float,
+  vy:            float,
+}
+
+player_system := (t::Transform, p::PlayerControlled, dt: float) -> _ {
+  on_ground := t.translation[1] <= p.ground_y + 0.001
+
+  if (action("jump") and on_ground) {
+    p.vy := p.jump_velocity
+  }
+
+  p.vy := p.vy + p.gravity * dt
+  t.translation[1] := t.translation[1] + p.vy * dt
+
+  if (t.translation[1] <= p.ground_y) {
+    t.translation[1] := p.ground_y
+    p.vy := 0.0
+  }
+}

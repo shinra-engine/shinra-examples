@@ -53,30 +53,9 @@
         ),
         (
             name: "story",
-            components: [
-                Dialogue(lines: [
-                    (
-                        speaker: "Narrator",
-                        text: "The last train had gone, leaving only the glow of the terminal.",
-                    ),
-                    (
-                        speaker: "Mina",
-                        text: "You came. I was starting to think the rain had changed your mind.",
-                    ),
-                    (
-                        speaker: "Aster",
-                        text: "Not a chance. Some promises are worth getting soaked for.",
-                    ),
-                    (
-                        speaker: "Mina",
-                        text: "Then stay until the first train. I still have one story left to tell.",
-                    ),
-                    (
-                        speaker: "Narrator",
-                        text: "Pressing Space, they let the quiet night continue one line at a time.",
-                    ),
-                ]),
-            ],
+            components: {
+                "Dialogue": (script: "story.tres.ron", index: 0, lines: 5),
+            },
         ),
     ],
 )

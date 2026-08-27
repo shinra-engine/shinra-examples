@@ -20,6 +20,9 @@
                 scale: (1.0, 1.0, 1.0),
             ),
             mesh: Some((path: "assets/obj/bunny.obj")),
+            components: {
+                "Orbit": (radius: 0.06, height: 0.0, speed: 0.8, angle: 0.0),
+            },
         ),
     ],
 )

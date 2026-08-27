@@ -1,0 +1,18 @@
+// Every view this game needs, so its rendering cost is legible at a glance.
+// `main` is the root.
+(
+    name:  "dino-run",
+    input: "input.tres.ron",
+    views: {
+        "main": (
+            unit:     Ref("canvas.ron"),
+            graphics: View2D,
+            camera:   ( projection: Screen ),
+        ),
+        "game": (
+            unit:     Ref("world.ron"),
+            graphics: View2D,
+            camera:   ( projection: Orthographic( half_height: 2.6, znear: 0.1, zfar: 50.0, eye: (0.0, 1.2, 10.0), target: (0.0, 1.2, 0.0) ) ),
+        ),
+    },
+)

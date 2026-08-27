@@ -1,0 +1,18 @@
+// Every view this game needs, so its rendering cost is legible at a glance.
+// `main` is the root.
+(
+    name:  "teapot",
+    input: "input.tres.ron",
+    views: {
+        "main": (
+            unit:     Ref("canvas.ron"),
+            graphics: View2D,
+            camera:   ( projection: Screen ),
+        ),
+        "game": (
+            unit:     Ref("world.ron"),
+            graphics: View3D,
+            camera:   ( projection: Perspective( fov_y_degrees: 60.0, znear: 0.01, zfar: 100.0, eye: (0.0, 1.5, 4.0), target: (0.0, 0.1, 0.0) ) ),
+        ),
+    },
+)

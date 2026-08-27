@@ -1,16 +1,6 @@
+// A world: entities in space. No camera — that belongs to the view.
 (
     name: "bunny",
-    camera: Some((
-        eye: (-0.05, 0.12, 0.25),
-        target: (-0.05, 0.10, 0.0),
-        up: (0.0, 1.0, 0.0),
-        projection: Perspective(
-            fov_y_degrees: 60.0,
-            aspect: 1.3333334,
-            znear: 0.01,
-            zfar: 10.0,
-        ),
-    )),
     nodes: [
         (
             name: "bunny",

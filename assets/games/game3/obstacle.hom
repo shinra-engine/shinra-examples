@@ -1,5 +1,8 @@
-// Hitting an obstacle restarts the run. The hitbox is the entity's Collider,
-// never its sprite: the game plays identically under every View.
+// Hitting an obstacle restarts the run, and records which one.
+//
+// The hitbox is the entity's Collider, never its sprite, so the game plays the
+// same under every View. The engine finds the contacts; what to do about one is
+// this game's rule.
 
 use std
 use engine
@@ -7,14 +10,17 @@ use engine
 @derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)
 Obstacle := struct {}
 
-// Singleton component: attach to one entity to hold the run's score.
+// Singleton: attach to one node to hold the run's score.
 @derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)
-Run := struct { crashes: int }
+Run := struct {
+  crashes: int,
+  last:    str,     // which obstacle ended the last run
+}
 
 obstacle_system := (run::Run) -> _ {
   hits := overlapping("PlayerControlled", "Obstacle")
-  if (len(hits) > 0) {
-    run.crashes := run.crashes + 1
-    restart()
-  }
+  if (len(hits) == 0) { => _ }
+  run.crashes := run.crashes + 1
+  run.last := hits[0].other
+  restart()
 }

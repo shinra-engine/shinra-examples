@@ -1,0 +1,9 @@
+// The screen. The game picture is one node in it; anything else here is UI.
+(
+    name: "bunny",
+    nodes: [
+        ( name: "viewport",
+          rect: ( fill: true ),
+          sprite: Some(( source: View("game") )) ),
+    ],
+)

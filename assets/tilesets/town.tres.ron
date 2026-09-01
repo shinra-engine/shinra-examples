@@ -1,8 +1,0 @@
-(
-    name: "town_tiles",
-    tiles: [
-        (id: 1, name: "grass", color: (0.4, 0.8, 0.3)),
-        (id: 2, name: "river", color: (0.2, 0.5, 0.9)),
-        (id: 5, name: "path",  color: (0.7, 0.6, 0.4)),
-    ],
-)

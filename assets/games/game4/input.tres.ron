@@ -1,6 +1,0 @@
-(
-    actions: {
-        "advance": ["Space"],
-    },
-    axes: {},
-)

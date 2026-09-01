@@ -1,0 +1,28 @@
+# game2 — the look of the no-network runner.
+#
+# One role per line: `role r g b a`, linear RGBA in 0..1, `#` starts a comment.
+# Blank lines are ignored. A reader takes the first token as the role and the
+# next four as floats, so the format needs no library:
+#
+#     for line in text.lines() {
+#         let line = line.split('#').next().unwrap_or("").trim();
+#         let mut it = line.split_whitespace();
+#         let Some(role) = it.next() else { continue };
+#         let c: Vec<f32> = it.filter_map(|s| s.parse().ok()).collect();
+#         if c.len() == 4 { /* role -> [c[0], c[1], c[2], c[3]] */ }
+#     }
+#
+# Only appearance lives here. Gravity, jump height, scroll speed and hitboxes
+# are rules, and rules are `process/` and `game/` — swapping this module must
+# change how the run looks and never how it plays.
+
+# The runner, while the run is alive.
+runner      0.24 0.24 0.24 1.0
+# The runner once it has hit something: the crash is legible at a glance.
+runner_hit  0.62 0.18 0.18 1.0
+# A cactus.
+hazard      0.28 0.45 0.24 1.0
+# The strip the runner stands on.
+ground      0.51 0.51 0.51 1.0
+# Clouds and other things that scroll past without being hit.
+scenery     0.83 0.83 0.83 1.0

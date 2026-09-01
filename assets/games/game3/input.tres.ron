@@ -1,7 +1,0 @@
-// Action map. The engine sends raw key codes; this file gives them meaning.
-(
-    actions: {
-        "jump": ["Space"],
-    },
-    axes: {},
-)

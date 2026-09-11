@@ -75,6 +75,9 @@ se::graph!("flat", |g| {
             ))
             .color(&["scene"])
             .uniform_of("View")
+            // The sprite sheet, by asset name. Whichever asset module fills
+            // the slot supplies it; this file never learns which.
+            .textures(&["atlas.png"])
             .load()
             .instanced("Sprite", "")
         })

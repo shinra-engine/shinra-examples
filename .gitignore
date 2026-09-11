@@ -1,7 +1,10 @@
 *.vsix
 *.patch
+*.patch.log
 
 target/
+# `shinra build` writes the contract and every module here.
+target/shinra/
 .tmp/
 /.browser/
 *.swp

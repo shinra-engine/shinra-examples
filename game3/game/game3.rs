@@ -146,10 +146,10 @@ fn tick(c: &mut Ctl, f: &Frame) {
     // The backdrop's slow drift. `game.so` is the only station that knows the
     // time, so a shader that wants one gets it as a number in the world.
     let t = f.t as f32;
-    let mut s = stage.1;
-    s.cx = (t * 0.11).sin() * 0.22;
-    s.cy = (t * 0.07).cos() * 0.10;
-    c.set(stage.0, "Stage", &s);
+    if let Some(st) = c.get_mut::<Stage>(stage.0) {
+        st.cx = (t * 0.11).sin() * 0.22;
+        st.cy = (t * 0.07).cos() * 0.10;
+    }
 
     // Swap the act. This is the design's claim made literal: a different
     // `asset/*.so` answers to `story.rpy`, and no other module is rebuilt or
@@ -157,9 +157,14 @@ fn tick(c: &mut Ctl, f: &Frame) {
     // be reconciled against them — which is control's job and nobody else's,
     // and happens on the next tick by way of the `len == 0` request below.
     if input.just_pressed(b'R') {
-        let next = (s.act as usize + 1) % ACTS.len();
-        s.act = next as u32;
-        c.set(stage.0, "Stage", &s);
+        // Read the act out before borrowing anything: the block below calls
+        // back into `c` (set_slot, log), and a component borrowed in place
+        // cannot be held across those — which is the borrow checker enforcing
+        // the rule that a world mutation invalidates the pointer.
+        let next = (stage.1.act as usize + 1) % ACTS.len();
+        if let Some(st) = c.get_mut::<Stage>(stage.0) {
+            st.act = next as u32;
+        }
         c.set_slot(Slot::Asset, ACTS[next]);
 
         // Start the new act at its first line. Leaving `index` where it was

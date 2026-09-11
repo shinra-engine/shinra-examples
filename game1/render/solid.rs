@@ -1,30 +1,71 @@
-//! The plain look: one instanced mesh pass, straight to the screen.
+//! The solid look: lit tetrahedra, one per body.
 //!
-//! Nodes and edges are all this module registers. It cannot spawn, cannot
-//! write a component, and knows no time beyond the globals the host injects.
-//! Swapping this file for `ghost.rs` therefore changes how the game looks and
-//! is incapable of changing anything else — which is the point of the split.
+//! A render module does not call WebGPU. It *records* — a run of fixed-size
+//! commands into the arena — and the host replays them. One boundary crossing
+//! a frame instead of one per draw, and this module keeps the zero-import
+//! property the shared memory model depends on.
 //!
-//! The shader is WGSL in `.wgsl` files, not strings in here. `render/wgsl/`
-//! has no sibling `.rs`, so it is shared across the category; `render/solid/`
-//! is named after this file, so it is private to it.
+//! Note what the draw carries: a column *index*, not a pointer and not a copy.
+//! The host resolves it through the same descriptor the stages used, so the
+//! instance buffer it uploads is the column's own bytes at the column's own
+//! stride, with nothing repacked.
 
-se::graph!("solid", |g| {
-    g.present("scene").pass("bodies", |p| {
-        p.shader(concat!(
-            include_str!("wgsl/vs.wgsl"),
-            include_str!("wgsl/light.wgsl"),
-            include_str!("solid/fs.wgsl"),
-        ))
-        .color(&["scene"])
-        .depth("depth")
-        // A component, not a magic camera: the host uploads the first entity
-        // carrying `Camera` as this pass's uniform.
-        .uniform_of("Camera")
-        .clear([0.05, 0.06, 0.10, 1.0])
-        // `model.obj` names an asset, not a file. Whichever `asset/*.so` fills
-        // the asset slot supplies it, so this module never learns whether it
-        // drew a bunny or a teapot.
-        .instanced("Transform", "model.obj")
-    })
-});
+use crate::*;
+
+/// The shader rides in a custom section. The host reads it out of the file
+/// without instantiating anything, exactly as it reads an asset.
+#[used]
+#[link_section = "se.wgsl"]
+static WGSL: [u8; include_bytes!("solid/shader.wgsl").len()] =
+    *include_bytes!("solid/shader.wgsl");
+
+const BEGIN_PASS: u32 = 0;
+const DRAW_INSTANCED: u32 = 1;
+const END_PASS: u32 = 3;
+
+const BLANK: Command = Command {
+    kind: BEGIN_PASS,
+    colour: 0,
+    shader: 0,
+    column: u32::MAX,
+    count: 0,
+    uniform_off: 0,
+    uniform_len: 0,
+    pad: 0,
+    clear_r: 0.0,
+    clear_g: 0.0,
+    clear_b: 0.0,
+    clear_a: 1.0,
+};
+
+#[no_mangle]
+pub extern "C" fn record() -> u32 {
+    unsafe {
+        let bodies = se_pool(arena::POOL_BODIES).len;
+        let cmds = arena::COMMANDS as *mut Command;
+
+        *cmds.add(0) = Command {
+            kind: BEGIN_PASS,
+            clear_r: 0.03,
+            clear_g: 0.04,
+            clear_b: 0.07,
+            ..BLANK
+        };
+        *cmds.add(1) = Command {
+            kind: DRAW_INSTANCED,
+            column: arena::COL_TRANSFORM,
+            count: bodies,
+            uniform_off: arena::CAMERA,
+            uniform_len: Camera::SIZE,
+            ..BLANK
+        };
+        *cmds.add(2) = Command { kind: END_PASS, ..BLANK };
+
+        let f = &mut *(arena::FRAME as *mut Frame);
+        f.commands = arena::COMMANDS;
+        f.count = 3;
+        f.present = 0;
+        f.epoch = f.epoch.wrapping_add(1);
+        3
+    }
+}

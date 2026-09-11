@@ -1,17 +1,16 @@
-//! A slow scale wobble.
+//! A slow scale wobble, so a still frame still reads as alive.
 //!
-//! The smallest stage in the bundle, and the point of it is that it is small:
-//! adding a behaviour means adding a file, not editing a scheduler, a system
-//! list, or a registration table. The host discovers it because it is a `.rs`
-//! at depth 1 of `process/`.
+//! The smallest possible stage: two columns, one field written. It is here
+//! mostly to show that adding a behaviour is adding a file — the host is not
+//! recompiled, the contract does not move, and nothing lists it.
 
-use data::{Breathe, Transform};
+use crate::process::math::sin;
+use crate::*;
 
 #[se::stage]
-fn breathe(t: &mut Transform, b: &mut Breathe, dt: f32) {
+fn breathe(b: &mut Breathe, t: &mut Transform) {
+    let dt = unsafe { (*(arena::CLOCK as *const Clock)).dt };
     b.phase += b.rate * dt;
-    let k = b.base + b.amount * b.phase.sin();
+    let k = b.base + sin(b.phase) * b.amount;
     t.scale = [k, k, k];
 }
-
-se::stages!(breathe);

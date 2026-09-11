@@ -25,4 +25,7 @@
 
 se::assets! {
     "palette.txt" => include_bytes!("sprites/palette.txt"),
+    // A 2x2 sheet: one cell per kind of thing in the game. Swapping this
+    // module for another that publishes the same name reskins game2 whole.
+    "atlas.png"   => include_bytes!("sprites/atlas.png"),
 }

@@ -1,11 +1,14 @@
-//! The bunny theme.
+//! `asset/bunny.wasm` — content, and nothing else.
 //!
-//! An asset module is name → bytes and nothing else. It cannot spawn the thing
-//! it describes and cannot write a component — content never writes data. What
-//! it can do is answer to the *same* name as its siblings: `bunny.so`,
-//! `teapot.so` and `quad.so` all publish `model.obj`, so the render graph asks
-//! for one mesh and the control layer decides which module is answering.
+//! No code: the bytes ride in a custom section and the host reads them out of
+//! the file without instantiating anything. That is what lets an asset be
+//! swapped with no module reloaded — the row that names it holds a `span`,
+//! so a 2-triangle quad and a 5000-triangle teapot cost the same sixteen
+//! bytes in the world.
+//!
+//! `#[used]` because nothing references it: `--gc-sections` would otherwise
+//! drop the only thing in the module.
 
-se::assets! {
-    "model.obj" => include_bytes!("bunny/model.obj"),
-}
+#[used]
+#[link_section = "se.asset"]
+static DATA: [u8; include_bytes!("bunny/model.obj").len()] = *include_bytes!("bunny/model.obj");

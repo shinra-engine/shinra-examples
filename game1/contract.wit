@@ -1,0 +1,90 @@
+// game1's contract. One file, and the only one whose change means "a different
+// game" rather than "reload a module".
+//
+// Two things moved when the engine did. `Camera` and `Look` were singleton
+// components written only by the control layer — which is the definition of a
+// control var, so that is what they are now. And the components that used to
+// be listed one by one are gathered into a pool: they share a length, row `i`
+// is the same body in all of them, and the pool is what one instanced draw
+// uploads.
+package shinra:game1@0.1.0;
+
+/// The vector types WGSL has. Named, so each can be given the alignment WGSL
+/// demands — `vec3` aligns to 16 while its size stays 12, and that one
+/// asymmetry is why the layout is generated rather than written by hand.
+interface types {
+  record vec2 { x: f32, y: f32 }
+  record vec3 { x: f32, y: f32, z: f32 }
+  record vec4 { x: f32, y: f32, z: f32, w: f32 }
+}
+
+/// Fixed-size references to things that are not fixed size. A 2-triangle quad
+/// and a 5000-triangle teapot are the same eight bytes here.
+interface handles {
+  record span   { off: u32, len: u32 }
+  record column { base: u32, cap: u32, stride: u32, pool: u32 }
+  record pool   { len: u32, cap: u32 }
+}
+
+/// Per-row data. A stage may write one only by naming it `&mut`.
+interface components {
+  use types.{vec3, vec4};
+
+  /// Where a body is. Written by `process/orbit.rs`, read by the graph as
+  /// instance data — at these exact offsets, with no repacking.
+  record transform { pos: vec3, rot: vec4, scale: vec3 }
+
+  /// What makes a thing go round the middle.
+  record orbit { center: vec3, radius: f32, speed: f32, phase: f32, tilt: f32 }
+
+  /// Rotation about the body's own axis, independent of where it is.
+  record spin { axis: vec3, rate: f32, angle: f32 }
+
+  /// A slow scale wobble, so a still frame still reads as alive.
+  record breathe { base: f32, amount: f32, rate: f32, phase: f32 }
+}
+
+/// The bodies. Four columns, one length: `look.bodies` asks for it and the
+/// host answers by moving one number. Nothing spawns.
+interface pools {
+  use components.{transform, orbit, spin, breathe};
+
+  record bodies { t: transform, o: orbit, s: spin, b: breathe }
+}
+
+/// The control var set: the whole write surface of `game/*.rs`. A control
+/// module reads input and writes these. There is no spawn, no despawn and no
+/// host call, which is why it imports nothing at all.
+interface control {
+  use types.{vec3};
+
+  /// What the player has chosen to look at. `bodies` is the roster: the host
+  /// reconciles the pool's length against it every frame.
+  record look { asset: u32, graph: u32, bodies: u32 }
+
+  /// The view. A pass names this as its uniform, which is how a camera
+  /// reaches a shader without the render side being handed the world.
+  record camera { eye: vec3, focus: vec3, fov: f32, dist: f32, yaw: f32, pitch: f32 }
+
+  /// Time and intent. `dt` is here rather than a stage argument because a
+  /// stage takes no arguments: everything it reads is in the arena.
+  record clock { t: f32, dt: f32, frame: u32, swipe: s32 }
+}
+
+/// render.wasm records; the host replays. Fixed-size commands, so the host
+/// walks the list with a stride and needs no decoder.
+interface render {
+  record command {
+    kind: u32,
+    colour: u32,
+    shader: u32,
+    column: u32,
+    count: u32,
+    uniform-off: u32,
+    uniform-len: u32,
+    pad: u32,
+    clear-r: f32, clear-g: f32, clear-b: f32, clear-a: f32,
+  }
+
+  record frame { commands: u32, count: u32, present: u32, epoch: u32 }
+}

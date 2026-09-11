@@ -1,35 +1,71 @@
-//! The trailing look: the same bodies, over a decaying image of themselves.
+//! The ghost look: the same bodies, flat and pale, one per body.
 //!
-//! This is the "view buffer as texture" rule doing real work. The `trail` pass
-//! reads `trail` while writing it, which would be a cycle in any graph that
-//! resolved reads within the frame. Here a sampled buffer always reads the
-//! *previous* frame, so it is not a cycle at all — it is a one-frame feedback
-//! loop.
+//! A render module does not call WebGPU. It *records* — a run of fixed-size
+//! commands into the arena — and the host replays them. One boundary crossing
+//! a frame instead of one per draw, and this module keeps the zero-import
+//! property the shared memory model depends on.
 //!
-//! Two passes, so each names its own fragment stage; the vertex stage comes
-//! from the category's shared `render/wgsl/`.
+//! Note what the draw carries: a column *index*, not a pointer and not a copy.
+//! The host resolves it through the same descriptor the stages used, so the
+//! instance buffer it uploads is the column's own bytes at the column's own
+//! stride, with nothing repacked.
 
-se::graph!("ghost", |g| {
-    g.present("trail")
-        .pass("bodies", |p| {
-            p.shader(concat!(
-                include_str!("wgsl/vs.wgsl"),
-                include_str!("wgsl/light.wgsl"),
-                include_str!("ghost/bodies.fs.wgsl"),
-            ))
-            .color(&["scene"])
-            .depth("depth")
-            .uniform_of("Camera")
-            .clear([0.0, 0.0, 0.0, 1.0])
-            .instanced("Transform", "model.obj")
-        })
-        .pass("trail", |p| {
-            p.shader(include_str!("ghost/trail.fs.wgsl"))
-                .color(&["trail"])
-                .reads(&["scene", "trail"])
-                .clear([0.0, 0.0, 0.0, 1.0])
-        })
-        // Ordering only — the read above needs no edge, because it resolves to
-        // last frame no matter when this pass runs.
-        .edge("bodies", "trail")
-});
+use crate::*;
+
+/// The shader rides in a custom section. The host reads it out of the file
+/// without instantiating anything, exactly as it reads an asset.
+#[used]
+#[link_section = "se.wgsl"]
+static WGSL: [u8; include_bytes!("ghost/shader.wgsl").len()] =
+    *include_bytes!("ghost/shader.wgsl");
+
+const BEGIN_PASS: u32 = 0;
+const DRAW_INSTANCED: u32 = 1;
+const END_PASS: u32 = 3;
+
+const BLANK: Command = Command {
+    kind: BEGIN_PASS,
+    colour: 0,
+    shader: 0,
+    column: u32::MAX,
+    count: 0,
+    uniform_off: 0,
+    uniform_len: 0,
+    pad: 0,
+    clear_r: 0.0,
+    clear_g: 0.0,
+    clear_b: 0.0,
+    clear_a: 1.0,
+};
+
+#[no_mangle]
+pub extern "C" fn record() -> u32 {
+    unsafe {
+        let bodies = se_pool(arena::POOL_BODIES).len;
+        let cmds = arena::COMMANDS as *mut Command;
+
+        *cmds.add(0) = Command {
+            kind: BEGIN_PASS,
+            clear_r: 0.10,
+            clear_g: 0.02,
+            clear_b: 0.14,
+            ..BLANK
+        };
+        *cmds.add(1) = Command {
+            kind: DRAW_INSTANCED,
+            column: arena::COL_TRANSFORM,
+            count: bodies,
+            uniform_off: arena::CAMERA,
+            uniform_len: Camera::SIZE,
+            ..BLANK
+        };
+        *cmds.add(2) = Command { kind: END_PASS, ..BLANK };
+
+        let f = &mut *(arena::FRAME as *mut Frame);
+        f.commands = arena::COMMANDS;
+        f.count = 3;
+        f.present = 0;
+        f.epoch = f.epoch.wrapping_add(1);
+        3
+    }
+}

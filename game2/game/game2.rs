@@ -45,8 +45,16 @@ const STAGING_GAP: f32 = 6.0;
 
 // --- this game's own numbers -----------------------------------------------
 const RUNNER_SIZE: [f32; 2] = [1.3, 1.9];
-const RUNNER_TINT: [f32; 4] = [0.20, 0.22, 0.26, 1.0];
-const CACTUS_TINT: [f32; 4] = [0.16, 0.42, 0.24, 1.0];
+/// White: the atlas cell is shown as drawn. Tint multiplies over it.
+const RUNNER_TINT: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+const CACTUS_TINT: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
+
+/// The sheet `asset/sprites.rs` publishes is 2x2, so four cells.
+const ATLAS: (u32, u32) = (2, 2);
+/// Cell (0,0) is the runner; the cacti take the other three, one per size, so
+/// the field is not three copies of one drawing.
+const CELL_RUNNER: (u32, u32) = (0, 0);
+const CELL_CACTUS: [(u32, u32); 3] = [(1, 0), (0, 1), (1, 1)];
 
 /// A fixed pool. A stage cannot spawn, so cacti are never created in flight —
 /// they are parked off-screen and handed back out. The roster is constant from
@@ -82,12 +90,12 @@ fn tick(c: &mut Ctl, f: &Frame) {
     // The view is an input component: control may write it, nothing else may.
     // Half-height follows the framebuffer so the world does not stretch when
     // the terminal is resized.
-    if let Some((e, mut v)) = first::<View>(c, "View") {
+    let aspect = f.height.max(1) as f32 / f.width.max(1) as f32;
+    if let Some(v) = c.first_mut::<View>() {
         v.half_w = WORLD_HALF_W;
-        v.half_h = WORLD_HALF_W * f.height.max(1) as f32 / f.width.max(1) as f32;
+        v.half_h = WORLD_HALF_W * aspect;
         v.cx = 0.0;
         v.cy = v.half_h - 2.0;
-        c.set(e, "View", &v);
     }
 
     let Some((run_e, mut run)) = first::<Run>(c, "Run") else { return };
@@ -198,6 +206,10 @@ fn park(c: &mut Ctl, e: Entity, i: u32) {
             ],
             size,
             tint: CACTUS_TINT,
+            uv: {
+                let cell = CELL_CACTUS[i as usize % CELL_CACTUS.len()];
+                Sprite::cell(cell.0, cell.1, ATLAS.0, ATLAS.1)
+            },
         },
     );
 }
@@ -238,6 +250,7 @@ fn ensure_runner(c: &mut Ctl) {
             pos: [PLAYER_X, GROUND_Y + RUNNER_SIZE[1] * 0.5],
             size: RUNNER_SIZE,
             tint: RUNNER_TINT,
+            uv: Sprite::cell(CELL_RUNNER.0, CELL_RUNNER.1, ATLAS.0, ATLAS.1),
         },
     );
     c.set(e, "Body", &Body { vel: [0.0; 2], on_ground: 1, _pad: 0 });

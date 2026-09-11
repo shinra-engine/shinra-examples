@@ -17,6 +17,8 @@ struct VsOut {
     @location(0)       tint  : vec4<f32>,
     // Position within the quad, -0.5..0.5. Shading only.
     @location(1)       local : vec2<f32>,
+    // Where in the atlas this fragment reads.
+    @location(2)       uv    : vec2<f32>,
 };
 
 @vertex
@@ -29,5 +31,12 @@ fn vs_main(v : SeVertex, i : SeInstance) -> VsOut {
     o.clip  = view_clip(world);
     o.tint  = i.tint;
     o.local = v.pos.xy;
+    // The quad spans -0.5..0.5, so shift to 0..1 and map into the cell the
+    // instance named. V is flipped: the mesh's +Y is up, an image's is down.
+    let t = v.pos.xy + vec2<f32>(0.5, 0.5);
+    o.uv = vec2<f32>(
+        mix(i.uv.x, i.uv.z, t.x),
+        mix(i.uv.w, i.uv.y, t.y),
+    );
     return o;
 }

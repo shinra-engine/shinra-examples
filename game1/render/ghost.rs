@@ -25,7 +25,7 @@ const END_PASS: u32 = 3;
 
 const BLANK: Command = Command {
     kind: BEGIN_PASS,
-    colour: 0,
+    vertices: 0,
     shader: 0,
     column: u32::MAX,
     count: 0,
@@ -53,6 +53,9 @@ pub extern "C" fn record() -> u32 {
         };
         *cmds.add(1) = Command {
             kind: DRAW_INSTANCED,
+            // Four triangles per body. The host draws what the module says;
+            // it has no idea what the geometry is.
+            vertices: 12,
             column: arena::COL_TRANSFORM,
             count: bodies,
             uniform_off: arena::CAMERA,

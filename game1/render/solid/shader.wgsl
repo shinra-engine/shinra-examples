@@ -49,23 +49,46 @@ fn rotate(q: vec4<f32>, v: vec3<f32>) -> vec3<f32> {
     return v + q.w * t + cross(q.xyz, t);
 }
 
-@vertex
-fn vs_main(@builtin(vertex_index) vi: u32, inst: TransformInstance) -> VsOut {
-    // A tetrahedron, so a body has faces that catch the light differently
-    // without an asset being loaded at all.
-    var verts = array<vec3<f32>, 12>(
+/// Three models, chosen per row by `transform.kind`.
+///
+/// They are built here rather than loaded because the point being made is
+/// that the *choice* crosses the boundary as data: the control layer writes a
+/// number, a stage copies it onto every row, and it arrives as instance
+/// input. Where the vertices come from is this shader's business — an asset
+/// module publishing them would change nothing above this line.
+fn model_vertex(kind: u32, vi: u32) -> vec3<f32> {
+    var tetra = array<vec3<f32>, 12>(
         vec3<f32>( 0.0,  0.8,  0.0), vec3<f32>(-0.7, -0.4,  0.4), vec3<f32>( 0.7, -0.4,  0.4),
         vec3<f32>( 0.0,  0.8,  0.0), vec3<f32>( 0.7, -0.4,  0.4), vec3<f32>( 0.0, -0.4, -0.8),
         vec3<f32>( 0.0,  0.8,  0.0), vec3<f32>( 0.0, -0.4, -0.8), vec3<f32>(-0.7, -0.4,  0.4),
         vec3<f32>(-0.7, -0.4,  0.4), vec3<f32>( 0.0, -0.4, -0.8), vec3<f32>( 0.7, -0.4,  0.4),
     );
-    let local = verts[vi] * inst.scale;
+    var spike = array<vec3<f32>, 12>(
+        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>(-0.35, -0.6,  0.35), vec3<f32>( 0.35, -0.6,  0.35),
+        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>( 0.35, -0.6,  0.35), vec3<f32>( 0.35, -0.6, -0.35),
+        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>( 0.35, -0.6, -0.35), vec3<f32>(-0.35, -0.6, -0.35),
+        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>(-0.35, -0.6, -0.35), vec3<f32>(-0.35, -0.6,  0.35),
+    );
+    var plate = array<vec3<f32>, 12>(
+        vec3<f32>(-0.9,  0.05, -0.9), vec3<f32>( 0.9,  0.05, -0.9), vec3<f32>( 0.9,  0.05,  0.9),
+        vec3<f32>(-0.9,  0.05, -0.9), vec3<f32>( 0.9,  0.05,  0.9), vec3<f32>(-0.9,  0.05,  0.9),
+        vec3<f32>(-0.9, -0.05,  0.9), vec3<f32>( 0.9, -0.05,  0.9), vec3<f32>( 0.9, -0.05, -0.9),
+        vec3<f32>(-0.9, -0.05,  0.9), vec3<f32>( 0.9, -0.05, -0.9), vec3<f32>(-0.9, -0.05, -0.9),
+    );
+    if (kind == 1u) { return spike[vi]; }
+    if (kind == 2u) { return plate[vi]; }
+    return tetra[vi];
+}
+
+@vertex
+fn vs_main(@builtin(vertex_index) vi: u32, inst: TransformInstance) -> VsOut {
+    let local = model_vertex(inst.kind, vi) * inst.scale;
     let world = rotate(inst.rot, local) + inst.pos;
 
     let tri = vi / 3u;
     var o: VsOut;
     o.clip = proj_of(cam.fov) * view_of(cam.eye, cam.focus) * vec4<f32>(world, 1.0);
-    o.normal = normalize(rotate(inst.rot, verts[vi]));
+    o.normal = normalize(rotate(inst.rot, model_vertex(inst.kind, vi)));
     o.tint = vec3<f32>(
         0.45 + 0.35 * f32(tri % 2u),
         0.55 + 0.20 * f32((tri + 1u) % 3u) / 2.0,

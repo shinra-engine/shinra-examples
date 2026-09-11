@@ -30,9 +30,13 @@ interface handles {
 interface components {
   use types.{vec3, vec4};
 
-  /// Where a body is. Written by `process/orbit.rs`, read by the graph as
-  /// instance data — at these exact offsets, with no repacking.
-  record transform { pos: vec3, rot: vec4, scale: vec3 }
+  /// Where a body is, and what it is drawn as. Read by the graph as instance
+  /// data at these exact offsets, with no repacking.
+  ///
+  /// `kind` costs nothing: std430 leaves four bytes after a `vec3` that ends a
+  /// record, so the model index rides in padding `scale` had already paid for
+  /// and the row is still 48 bytes.
+  record transform { pos: vec3, rot: vec4, scale: vec3, kind: u32 }
 
   /// What makes a thing go round the middle.
   record orbit { center: vec3, radius: f32, speed: f32, phase: f32, tilt: f32 }
@@ -69,6 +73,24 @@ interface control {
   /// Time and intent. `dt` is here rather than a stage argument because a
   /// stage takes no arguments: everything it reads is in the arena.
   record clock { t: f32, dt: f32, frame: u32, swipe: s32 }
+
+  /// The keyboard. Three bitmasks rather than a byte per key, because a
+  /// contract record carries no arrays — and thirty-two keys is every key a
+  /// game in this engine has ever bound.
+  ///
+  ///   bit 0..25  a..z      bit 26  space     bit 27  enter
+  ///   bit 28/29  left/right          bit 30/31  up/down
+  ///
+  /// The host writes this before the tick; `game.wasm` reads it at an address
+  /// the contract fixed, with no host call and no import.
+  record input {
+    down: u32,
+    pressed: u32,
+    released: u32,
+    mouse-x: f32,
+    mouse-y: f32,
+    mouse-down: u32,
+  }
 }
 
 /// render.wasm records; the host replays. Fixed-size commands, so the host
@@ -76,7 +98,8 @@ interface control {
 interface render {
   record command {
     kind: u32,
-    colour: u32,
+    /// Vertices the shader builds per instance.
+    vertices: u32,
     shader: u32,
     column: u32,
     count: u32,

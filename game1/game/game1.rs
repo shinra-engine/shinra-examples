@@ -15,6 +15,16 @@ use crate::*;
 /// One sixtieth. The control layer is the only station that knows the time.
 const DT: f32 = 1.0 / 60.0;
 
+/// How many models `render/` can draw. The control layer counts them because
+/// it is the one choosing; the shader switches on the number it is handed.
+const MODELS: u32 = 3;
+
+/// The keyboard is three bitmasks: bit 0..25 are a..z, so `m` is bit 12 and
+/// `g` is bit 6. Spelled out here rather than imported, because a module
+/// imports nothing at all.
+const KEY_M: u32 = 1 << 12;
+const KEY_G: u32 = 1 << 6;
+
 #[no_mangle]
 pub extern "C" fn tick(frame: u32) -> u32 {
     unsafe {
@@ -23,14 +33,24 @@ pub extern "C" fn tick(frame: u32) -> u32 {
         clock.dt = DT;
         clock.t += DT;
 
+        let input = &*(arena::INPUT as *const Input);
         let look = &mut *(arena::LOOK as *mut Look);
+
+        // `m` cycles the model. The control layer's whole effect is this
+        // number; what it means is the pipeline's business, and the host
+        // never learns either.
+        if input.pressed & KEY_M != 0 {
+            look.asset = (look.asset + 1) % MODELS;
+        }
+        // `g` cycles the look, the same way.
+        if input.pressed & KEY_G != 0 {
+            look.graph = (look.graph + 1) % 2;
+        }
         // Three bodies, and a fourth that arrives after a second — a roster
         // change with no spawn anywhere in sight. Writing the pool's length is
         // the whole of it; the host clamps the answer to the capacity it
         // placed and the pipeline picks it up on the same frame.
         look.bodies = if clock.t > 1.0 { 4 } else { 3 };
-        look.asset = 0;
-        look.graph = 0;
 
         let cam = &mut *(arena::CAMERA as *mut Camera);
         if clock.frame == 0 {

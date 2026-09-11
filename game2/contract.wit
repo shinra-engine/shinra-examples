@@ -1,0 +1,85 @@
+// game2's contract: a 2D side-scroller, and nothing in it is 3D.
+//
+// There is no transform. A flat game needs a position and a size, and the
+// orthographic camera is a control var like any other — the engine has no
+// camera concept of its own.
+package shinra:game2@0.1.0;
+
+interface types {
+  record vec2 { x: f32, y: f32 }
+  record vec3 { x: f32, y: f32, z: f32 }
+  record vec4 { x: f32, y: f32, z: f32, w: f32 }
+}
+
+interface handles {
+  record span   { off: u32, len: u32 }
+  record column { base: u32, cap: u32, stride: u32, pool: u32 }
+  record pool   { len: u32, cap: u32 }
+}
+
+interface components {
+  use types.{vec2, vec4};
+
+  /// One drawable rectangle, and the instance input of the only draw. `pos` is
+  /// the centre rather than a corner, so collision is a centre-distance test
+  /// against `size * 0.5` with no origin convention to get wrong.
+  record sprite { pos: vec2, size: vec2, tint: vec4, uv: vec4 }
+
+  /// Vertical state of anything that falls. Only the runner has one; every
+  /// other row carries it unused, which is what a pool costs and why it is
+  /// cheaper than it sounds — `body` is 12 bytes.
+  record body { vel: vec2, on-ground: u32 }
+
+  /// A cactus. `live` is how an obstacle is recycled rather than despawned:
+  /// nothing spawns, so the roster stays fixed and a parked hazard waits with
+  /// `live == 0` until control hands it back out.
+  record hazard { speed: f32, width: f32, height: f32, live: u32 }
+}
+
+/// One pool: every row is a sprite, and some of them are also a body or a
+/// hazard. `render/flat.rs` draws the whole thing in one instanced call, which
+/// is exactly why they share a length.
+interface pools {
+  use components.{sprite, body, hazard};
+
+  record sprites { s: sprite, b: body, h: hazard }
+}
+
+interface control {
+  /// The visible box, as half-extents around a centre. `half` names are safe
+  /// where `filter` and `target` are WGSL reserved words.
+  record view { half-w: f32, half-h: f32, cx: f32, cy: f32 }
+
+  /// The run in progress. It lives here rather than in a `static` inside the
+  /// control module because swapping a module drops every `static` in it, and
+  /// a game-over that forgets itself on reload is the bug this rule prevents.
+  record run { alive: u32, score: u32, speed: f32, spawn-t: f32 }
+
+  record clock { t: f32, dt: f32, frame: u32, swipe: s32 }
+
+  /// bit 0..25 a..z, 26 space, 27 enter, 28/29 left/right, 30/31 up/down.
+  record input {
+    down: u32,
+    pressed: u32,
+    released: u32,
+    mouse-x: f32,
+    mouse-y: f32,
+    mouse-down: u32,
+  }
+}
+
+interface render {
+  record command {
+    kind: u32,
+    vertices: u32,
+    shader: u32,
+    column: u32,
+    count: u32,
+    uniform-off: u32,
+    uniform-len: u32,
+    pad: u32,
+    clear-r: f32, clear-g: f32, clear-b: f32, clear-a: f32,
+  }
+
+  record frame { commands: u32, count: u32, present: u32, epoch: u32 }
+}

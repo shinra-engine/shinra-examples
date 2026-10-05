@@ -1,0 +1,42 @@
+package shinra:game3@0.1.0;
+
+interface types {
+  record vec2 { x: f32, y: f32 }
+  record vec3 { x: f32, y: f32, z: f32 }
+  record vec4 { x: f32, y: f32, z: f32, w: f32 }
+}
+
+interface handles {
+  record span   { off: u32, len: u32 }
+  record column { base: u32, cap: u32, stride: u32, pool: u32 }
+  record pool   { len: u32, cap: u32 }
+}
+
+interface components {
+  use types.{vec2, vec4};
+  /// One drawable rectangle. `kind` says what it is (0 actor, 1 box, 2 glyph, 3 backdrop),
+  /// `uv.x` carries the actor slot or the character code. ONE column because se-gpu draws one
+  /// instance column per pipeline.
+  record sprite { kind: u32, tint: vec4, pos: vec2, size: vec2, uv: vec4 }
+}
+
+interface pools {
+  use components.{sprite};
+  record sprites { s: sprite }
+}
+
+interface control {
+  /// The reader's cursor. game.wasm is the ONLY writer (it also runs the typewriter).
+  record line  { index: u32, revealed: u32, speaker: u32, done: u32, len: u32, elapsed: f32 }
+  record stage { fade: f32, act: u32, cx: f32, cy: f32 }
+  record view  { half-w: f32, half-h: f32, cx: f32, cy: f32 }
+  record clock { t: f32, dt: f32, frame: u32 }
+  record input { down: u32, pressed: u32, released: u32, mouse-x: f32, mouse-y: f32, mouse-down: u32 }
+}
+
+interface render {
+  record command { kind: u32, vertices: u32, shader: u32, column: u32, count: u32,
+                   uniform-off: u32, uniform-len: u32, pad: u32,
+                   clear-r: f32, clear-g: f32, clear-b: f32, clear-a: f32 }
+  record frame { commands: u32, count: u32, present: u32, epoch: u32 }
+}

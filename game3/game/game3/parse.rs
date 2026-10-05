@@ -29,6 +29,10 @@
 //! content must not be able to crash the game — an act with a keyword this
 //! parser has not learned should lose that line, not the player's evening.
 
+/// Roster ceiling. A name's slot never exceeds `MAX_CAST - 1`; further names
+/// share the last slot rather than overflow the fixed table.
+pub const MAX_CAST: usize = 16;
+
 /// One line of dialogue.
 pub struct Say<'a> {
     /// The `Actor.slot` assigned to this speaker.
@@ -36,40 +40,112 @@ pub struct Say<'a> {
     pub text: &'a str,
 }
 
+/// An act, borrowed from its bytes. Nothing is copied or stored: every query
+/// re-reads the text, which costs O(bytes) and keeps slots stable by
+/// construction — the same bytes always give the same slot.
 pub struct Script<'a> {
-    pub says: Vec<Say<'a>>,
-    /// How many distinct actors the act names. This is the roster size, and it
-    /// is discovered rather than declared — an act with a fifth character
-    /// costs one more spawn and not one line anywhere else.
-    pub cast: u32,
+    text: &'a str,
 }
 
-impl Script<'_> {
+impl<'a> Script<'a> {
+    /// Invalid UTF-8 truncates at the last valid byte: a broken asset yields
+    /// fewer lines, never a panic.
+    pub fn new(bytes: &'a [u8]) -> Script<'a> {
+        let text = match core::str::from_utf8(bytes) {
+            Ok(t) => t,
+            Err(e) => core::str::from_utf8(&bytes[..e.valid_up_to()]).unwrap_or(""),
+        };
+        Script { text }
+    }
+
+    /// The `say` lines in order, each with its speaker's slot.
+    pub fn says(&self) -> Says<'a> {
+        Says { lines: self.text.lines(), names: [""; MAX_CAST], n: 0 }
+    }
+
+    /// Number of `say` lines.
+    pub fn count(&self) -> u32 {
+        self.says().count() as u32
+    }
+
     /// The line at `i`, wrapping. The act loops rather than ending, because
     /// what happens after the last line is a story decision and this act does
     /// not make one.
-    pub fn line(&self, i: u32) -> Option<&Say<'_>> {
-        if self.says.is_empty() {
-            None
-        } else {
-            self.says.get(i as usize % self.says.len())
+    pub fn line(&self, i: u32) -> Option<Say<'a>> {
+        let n = self.count();
+        if n == 0 {
+            return None;
         }
+        self.says().nth((i % n) as usize)
+    }
+
+    /// Distinct actors named by `show`, `hide` or `say`: the roster size,
+    /// discovered rather than declared. At least 1, at most `MAX_CAST`.
+    pub fn cast(&self) -> u32 {
+        let mut it = self.says();
+        while it.next().is_some() {}
+        (it.n as u32).max(1)
     }
 }
 
-/// Actor names in first-appearance order. A name's index *is* its
-/// `Actor.slot`, so slot 0 is whoever speaks or is shown first.
-struct Cast<'a> {
-    names: Vec<&'a str>,
+/// Iterator over `say` lines. Carries the cast table so slots follow first
+/// appearance, including `show`/`hide` lines that precede the speaker.
+pub struct Says<'a> {
+    lines: core::str::Lines<'a>,
+    names: [&'a str; MAX_CAST],
+    n: usize,
 }
 
-impl<'a> Cast<'a> {
+impl<'a> Says<'a> {
+    /// A name's index *is* its `Actor.slot`; names past the table clamp.
     fn slot_of(&mut self, name: &'a str) -> u32 {
-        if let Some(i) = self.names.iter().position(|n| *n == name) {
+        if let Some(i) = self.names[..self.n].iter().position(|x| *x == name) {
             return i as u32;
         }
-        self.names.push(name);
-        (self.names.len() - 1) as u32
+        if self.n == MAX_CAST {
+            return (MAX_CAST - 1) as u32;
+        }
+        self.names[self.n] = name;
+        self.n += 1;
+        (self.n - 1) as u32
+    }
+}
+
+impl<'a> Iterator for Says<'a> {
+    type Item = Say<'a>;
+
+    fn next(&mut self) -> Option<Say<'a>> {
+        while let Some(raw) = self.lines.next() {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let (kw, rest) = head(line);
+            match kw {
+                // `say <actor> "<text>"`. Both halves are required; a `say`
+                // with no quoted text is malformed and dropped.
+                "say" => {
+                    let (who, tail) = head(rest);
+                    if who.is_empty() {
+                        continue;
+                    }
+                    let Some(text) = quoted(tail) else { continue };
+                    let speaker = self.slot_of(who);
+                    return Some(Say { speaker, text });
+                }
+                // `show` puts an actor on stage, so it defines a slot even for
+                // someone who never speaks.
+                "show" | "hide" => {
+                    let (who, _) = head(rest);
+                    if !who.is_empty() {
+                        self.slot_of(who);
+                    }
+                }
+                // Unknown or not-yet-used keywords are skipped, never fatal.
+                _ => {}
+            }
+        }
+        None
     }
 }
 
@@ -93,85 +169,76 @@ fn quoted(s: &str) -> Option<&str> {
     Some(&rest[..b])
 }
 
-/// Read an act. Invalid input yields fewer lines, never a panic.
-pub fn parse(src: &[u8]) -> Script<'_> {
-    // A story file that is not UTF-8 is a broken asset, not a crash.
-    let text = match core::str::from_utf8(src) {
-        Ok(t) => t,
-        Err(e) => core::str::from_utf8(&src[..e.valid_up_to()]).unwrap_or(""),
-    };
-
-    let mut cast = Cast { names: Vec::new() };
-    let mut says = Vec::new();
-
-    for raw in text.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let (kw, rest) = head(line);
-        match kw {
-            "say" => {
-                // `say <actor> "<text>"`. Both halves are required; a `say`
-                // with no quoted text is malformed and dropped.
-                let (who, tail) = head(rest);
-                if who.is_empty() {
-                    continue;
-                }
-                let Some(text) = quoted(tail) else { continue };
-                let speaker = cast.slot_of(who);
-                says.push(Say { speaker, text });
-            }
-            // `show` is what puts an actor on stage, so it defines a slot even
-            // for someone who never speaks.
-            "show" | "hide" => {
-                let (who, _) = head(rest);
-                if !who.is_empty() {
-                    cast.slot_of(who);
-                }
-            }
-            // Recognised, and deliberately unused: the dialect has these and
-            // this act does not act on them yet. Listing them says "skipped on
-            // purpose" rather than letting them fall through as unknown.
-            "scene" | "label" | "jump" | "choice" | "->" => {}
-            _ => {}
-        }
-    }
-
-    let n = cast.names.len() as u32;
-    Script { says, cast: n.max(1) }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const ACT1: &[u8] = include_bytes!("../../asset/act1/story.rpy");
+    const ACT2: &[u8] = include_bytes!("../../asset/act2/story.rpy");
+
     #[test]
     fn reads_say_lines_and_assigns_slots_in_first_appearance_order() {
-        let s = parse(b"show jessie\nsay jessie \"hi\"\nsay barret \"go\"\nsay jessie \"no\"\n");
-        assert_eq!(s.len(), 3);
-        assert_eq!(s.says[0].speaker, 0);
-        assert_eq!(s.says[1].speaker, 1);
-        assert_eq!(s.says[2].speaker, 0);
-        assert_eq!(s.cast, 2);
+        let s = Script::new(b"show jessie\nsay jessie \"hi\"\nsay barret \"go\"\nsay jessie \"no\"\n");
+        assert_eq!(s.count(), 3);
+        let v: [u32; 3] = [0, 1, 2].map(|i| s.line(i).unwrap().speaker);
+        assert_eq!(v, [0, 1, 0]);
+        assert_eq!(s.cast(), 2);
     }
 
     #[test]
     fn comments_blanks_and_unknown_keywords_are_skipped_not_fatal() {
-        let s = parse(b"# note\n\nwiggle foo\nlabel start\nsay a \"x\"\n");
-        assert_eq!(s.len(), 1);
-        assert_eq!(s.says[0].text, "x");
+        let s = Script::new(b"# note\n\nwiggle foo\nlabel start\nsay a \"x\"\n");
+        assert_eq!(s.count(), 1);
+        assert_eq!(s.line(0).unwrap().text, "x");
     }
 
     #[test]
     fn a_malformed_say_is_dropped_rather_than_guessed() {
-        assert_eq!(parse(b"say jessie\nsay \"orphan\"\n").len(), 0);
+        let s = Script::new(b"say jessie\nsay \"orphan\"\n");
+        assert_eq!(s.count(), 0);
+        assert!(s.line(0).is_none());
+        assert_eq!(s.cast(), 1);
     }
 
     #[test]
     fn line_wraps_so_an_act_loops() {
-        let s = parse(b"say a \"one\"\nsay a \"two\"\n");
+        let s = Script::new(b"say a \"one\"\nsay a \"two\"\n");
         assert_eq!(s.line(0).unwrap().text, "one");
         assert_eq!(s.line(3).unwrap().text, "two");
+    }
+
+    #[test]
+    fn act1_has_three_actors() {
+        let s = Script::new(ACT1);
+        assert_eq!(s.cast(), 3);
+        assert!(s.count() > 0);
+    }
+
+    #[test]
+    fn act2_has_four_actors() {
+        let s = Script::new(ACT2);
+        assert_eq!(s.cast(), 4);
+        assert!(s.count() > 0);
+    }
+
+    #[test]
+    fn non_utf8_tail_is_dropped_without_panic() {
+        let s = Script::new(b"say a \"ok\"\nsay b \"\xff\xfe\"\n");
+        assert_eq!(s.count(), 1);
+        assert_eq!(s.line(0).unwrap().text, "ok");
+        assert_eq!(Script::new(b"\xff").count(), 0);
+    }
+
+    #[test]
+    fn names_past_the_table_clamp_to_the_last_slot() {
+        let mut src = String::new();
+        for i in 0..20 {
+            src.push_str(&format!("say n{i} \"x\"\n"));
+        }
+        let s = Script::new(src.as_bytes());
+        assert_eq!(s.cast(), MAX_CAST as u32);
+        assert_eq!(s.count(), 20);
+        assert_eq!(s.line(15).unwrap().speaker, 15);
+        assert_eq!(s.line(19).unwrap().speaker, 15);
     }
 }

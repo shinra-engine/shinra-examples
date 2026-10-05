@@ -144,6 +144,21 @@ An AVG-style dialogue game whose script is an *asset*, in the manner of Ren'Py
 — so replacing one `asset/*.so` replaces the story while the game rules stay
 put. Not in the tree yet.
 
+### game4 — 小蜜蜂
+
+A small Galaga-style shooter, flat and 2D. The ship fires on its own, like a
+雷電 — **←**/**→** (or **A**/**D**) steer and nothing else is needed. A swarm of
+thirty-two bees sweeps sideways, drops a step at each wall and speeds up as it
+thins; bees drop bombs. Shoot them all to win; get bombed or let the swarm reach
+your row and it is over. **Enter** starts again.
+
+One pool holds the ship, bullets, bombs, bees, stars and a progress bar, all
+drawn by a single instanced call; `actor.kind` says what a row is and one stage,
+`process/fly.rs`, moves them all. The rules (firing, the swarm, hits, win and
+loss) are in `game/game4.rs`, which is the only module that writes `run`.
+
+    target/debug/shinra run ../shinra-examples/game4
+
 ## Things that will bite you
 
 - A `.so` loses its `static`s when it is hot-swapped. State that must survive

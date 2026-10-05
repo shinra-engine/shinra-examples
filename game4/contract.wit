@@ -1,0 +1,87 @@
+// game4's contract: a 小蜜蜂 shooter. Nothing in it is 3D.
+//
+// One pool holds everything that moves or is drawn: the ship, its bullets, the
+// bees, their bombs, the stars and one progress bar. A row is a `sprite` and an
+// `actor`; `actor.kind` says which thing the row is, so a single stage moves
+// all of them and a single instanced draw paints all of them.
+package shinra:game4@0.1.0;
+
+interface types {
+  record vec2 { x: f32, y: f32 }
+  record vec3 { x: f32, y: f32, z: f32 }
+  record vec4 { x: f32, y: f32, z: f32, w: f32 }
+}
+
+interface handles {
+  record span   { off: u32, len: u32 }
+  record column { base: u32, cap: u32, stride: u32, pool: u32 }
+  record pool   { len: u32, cap: u32 }
+}
+
+interface components {
+  use types.{vec2, vec4};
+
+  /// One drawable rectangle, and the instance input of the only draw. `pos` is
+  /// the centre, so collision is a centre-distance test against `size * 0.5`.
+  /// `uv.x` carries the shape id the shader draws (ship, bullet, bee, bomb,
+  /// star, bar); the rest of `uv` is unused.
+  record sprite { pos: vec2, size: vec2, tint: vec4, uv: vec4 }
+
+  /// What a row is and how it moves. `live == 0` is a parked row: it is not
+  /// moved, not tested, and has a zero size so it draws nothing. Nothing is
+  /// ever spawned or despawned, so the roster stays fixed — a bullet is a row
+  /// that control hands out and the stage takes back.
+  record actor { vel: vec2, kind: u32, live: u32 }
+}
+
+interface pools {
+  use components.{sprite, actor};
+
+  record sprites { s: sprite, a: actor }
+}
+
+interface control {
+  /// The visible box, as half-extents around a centre.
+  record view { half-w: f32, half-h: f32, cx: f32, cy: f32 }
+
+  /// The run in progress. `alive` is 1 while playing, 0 once lost, 2 once won.
+  /// `dir` is the swarm's heading (+1 right, -1 left), `bees` how many are
+  /// left, and `rng` a seed advanced by control only.
+  record run {
+    alive: u32,
+    score: u32,
+    dir: f32,
+    fire-t: f32,
+    bomb-t: f32,
+    rng: u32,
+    bees: u32,
+  }
+
+  record clock { t: f32, dt: f32, frame: u32, swipe: s32 }
+
+  /// bit 0..25 a..z, 26 space, 27 enter, 28/29 left/right, 30/31 up/down.
+  record input {
+    down: u32,
+    pressed: u32,
+    released: u32,
+    mouse-x: f32,
+    mouse-y: f32,
+    mouse-down: u32,
+  }
+}
+
+interface render {
+  record command {
+    kind: u32,
+    vertices: u32,
+    shader: u32,
+    column: u32,
+    count: u32,
+    uniform-off: u32,
+    uniform-len: u32,
+    pad: u32,
+    clear-r: f32, clear-g: f32, clear-b: f32, clear-a: f32,
+  }
+
+  record frame { commands: u32, count: u32, present: u32, epoch: u32 }
+}

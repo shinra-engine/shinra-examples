@@ -37,6 +37,7 @@ pub extern "C" fn record() -> u32 {
             count: n,
             uniform_off: arena::VIEW,
             uniform_len: View::SIZE,
+            texture: assets::SPRITES,
             ..BLANK
         };
         *cmds.add(2) = Command { kind: END_PASS, ..BLANK };

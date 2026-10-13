@@ -2,9 +2,7 @@
 // which the host prepends: the instance input *is* the component record, at
 // the record's own std430 offsets.
 //
-// No atlas yet. `uv` rides in the record and reaches here untouched, so the
-// day an asset module publishes a sheet the sampling is the only line that
-// changes.
+// The fragment samples the sprite atlas (`se_tex`) at the record's `uv`.
 
 @group(0) @binding(0) var<uniform> view: View;
 
@@ -43,8 +41,6 @@ fn vs_main(@builtin(vertex_index) vi: u32, inst: SpriteInstance) -> VsOut {
 
 @fragment
 fn fs_main(i: VsOut) -> @location(0) vec4<f32> {
-    // A soft edge, so a rectangle reads as a shape rather than a block.
-    let d = abs(i.uv - vec2<f32>(0.5, 0.5)) * 2.0;
-    let edge = 1.0 - smoothstep(0.86, 1.0, max(d.x, d.y));
-    return vec4<f32>(i.tint.rgb * (0.75 + 0.25 * edge), i.tint.a);
+    let tex = textureSample(se_tex, se_samp, i.uv);
+    return vec4<f32>(tex.rgb * i.tint.rgb, tex.a * i.tint.a);
 }

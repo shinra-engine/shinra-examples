@@ -13,7 +13,6 @@
 
 use crate::*;
 
-const DT: f32 = 1.0 / 60.0;
 
 /// The pool: row 0 is the ship, then bullets, bombs, bees, stars, and a bar.
 const SHIP: u32 = 0;
@@ -61,10 +60,8 @@ const KEY_RIGHT: u32 = 1 << 29;
 #[no_mangle]
 pub extern "C" fn tick(frame: u32) -> u32 {
     unsafe {
-        let clock = &mut *(arena::CLOCK as *mut Clock);
-        clock.frame = frame;
-        clock.dt = DT;
-        clock.t += DT;
+        let clock = &*(arena::CLOCK as *const Clock);
+        let dt = clock.dt;
 
         let view = &mut *(arena::VIEW as *mut View);
         view.half_w = HALF_W;
@@ -97,11 +94,11 @@ pub extern "C" fn tick(frame: u32) -> u32 {
             dx += 1.0;
         }
         let ship = &mut *se_row::<Sprite>(&cs, SHIP);
-        ship.pos[0] = (ship.pos[0] + dx * 4.2 * DT).clamp(-EDGE, EDGE);
+        ship.pos[0] = (ship.pos[0] + dx * 4.2 * dt).clamp(-EDGE, EDGE);
         let ship_pos = ship.pos;
 
         // Fire, without being asked.
-        run.fire_t -= DT;
+        run.fire_t -= dt;
         if run.fire_t <= 0.0 {
             run.fire_t = 0.24;
             launch(&cs, &ca, B0, BULLETS, K_BULLET, SHAPE_BULLET, ship_pos, [0.0, 6.5], [0.07, 0.30], [1.0, 0.92, 0.30, 1.0]);
@@ -136,7 +133,7 @@ pub extern "C" fn tick(frame: u32) -> u32 {
 
         // A bee lets a bomb go: the k-th live one, k from a seed that only
         // control advances, so a replay of the same inputs is the same run.
-        run.bomb_t -= DT;
+        run.bomb_t -= dt;
         if run.bomb_t <= 0.0 && run.bees > 0 {
             run.rng = run.rng.wrapping_mul(1664525).wrapping_add(1013904223);
             let mut k = (run.rng >> 8) % run.bees;

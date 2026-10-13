@@ -12,7 +12,6 @@
 
 use crate::*;
 
-const DT: f32 = 1.0 / 60.0;
 /// Row 0 is the runner, 1..=6 are cacti, 7 is the ground.
 const RUNNER: u32 = 0;
 const HAZARDS: u32 = 6;
@@ -31,10 +30,8 @@ const KEY_ENTER: u32 = 1 << 27;
 #[no_mangle]
 pub extern "C" fn tick(frame: u32) -> u32 {
     unsafe {
-        let clock = &mut *(arena::CLOCK as *mut Clock);
-        clock.frame = frame;
-        clock.dt = DT;
-        clock.t += DT;
+        let clock = &*(arena::CLOCK as *const Clock);
+        let dt = clock.dt;
 
         let view = &mut *(arena::VIEW as *mut View);
         // Framed on the action rather than on the origin: the ground is at
@@ -71,7 +68,7 @@ pub extern "C" fn tick(frame: u32) -> u32 {
 
         // Faster the longer you last.
         run.speed = 4.0 + (run.score as f32) * 0.02;
-        run.spawn_t -= DT;
+        run.spawn_t -= dt;
         if run.spawn_t <= 0.0 {
             run.spawn_t = 1.5 - (run.speed - 4.0).min(0.9) * 0.5;
             release(&cs, &ch, run.speed);

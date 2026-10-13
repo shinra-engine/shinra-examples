@@ -10,7 +10,6 @@ mod cast;
 mod parse;
 mod reader;
 
-const DT: f32 = 1.0 / 60.0;
 // Host input bits (se-vm/src/input.rs). A module imports nothing, so spell them.
 const SPACE: u32 = 1 << 26;
 const ENTER: u32 = 1 << 27;
@@ -43,10 +42,8 @@ unsafe fn acts() -> u32 {
 #[no_mangle]
 pub extern "C" fn tick(frame: u32) -> u32 {
     unsafe {
-        let clock = &mut *(arena::CLOCK as *mut Clock);
-        clock.frame = frame;
-        clock.dt = DT;
-        clock.t += DT;
+        let clock = &*(arena::CLOCK as *const Clock);
+        let dt = clock.dt;
 
         let view = &mut *(arena::VIEW as *mut View);
         view.half_w = 1.6;
@@ -81,7 +78,7 @@ pub extern "C" fn tick(frame: u32) -> u32 {
             reader::restart(&mut c, &script);
         } else {
             let advance = input.pressed & (SPACE | ENTER) != 0;
-            reader::step(&mut c, clock.dt, advance, &script);
+            reader::step(&mut c, dt, advance, &script);
         }
         line.index = c.index;
         line.revealed = c.revealed;

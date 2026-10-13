@@ -13,7 +13,6 @@
 use crate::*;
 
 /// One sixtieth. The control layer is the only station that knows the time.
-const DT: f32 = 1.0 / 60.0;
 
 /// How many models `render/` can draw. The control layer counts them because
 /// it is the one choosing; the shader switches on the number it is handed.
@@ -28,10 +27,8 @@ const KEY_G: u32 = 1 << 6;
 #[no_mangle]
 pub extern "C" fn tick(frame: u32) -> u32 {
     unsafe {
-        let clock = &mut *(arena::CLOCK as *mut Clock);
-        clock.frame = frame;
-        clock.dt = DT;
-        clock.t += DT;
+        let clock = &*(arena::CLOCK as *const Clock);
+        let dt = clock.dt;
 
         let input = &*(arena::INPUT as *const Input);
         let look = &mut *(arena::LOOK as *mut Look);
@@ -59,7 +56,7 @@ pub extern "C" fn tick(frame: u32) -> u32 {
             cam.fov = 0.9;
             cam.pitch = 0.35;
         }
-        cam.yaw += DT * 0.35;
+        cam.yaw += dt * 0.35;
         // The eye follows from the orbit the control layer keeps, so a graph
         // never has to recompute it.
         let (sy, cy) = (sinf(cam.yaw), cosf(cam.yaw));

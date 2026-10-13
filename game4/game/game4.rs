@@ -7,9 +7,8 @@
 //! bee and the run is won; get bombed, or let the swarm reach the ship's row,
 //! and it is lost. Enter starts again.
 //!
-//! The rules live here and the motion lives in `process/fly.rs`: whether a
-//! bullet hit a bee is a rule about the game, and the state it changes is a
-//! control var, which only this module may write.
+//! Motion lives in `process/fly.rs` and collisions in `process/hit.rs`; this
+//! module reads the columns they leave and derives the control vars from them.
 
 use crate::*;
 
@@ -84,6 +83,25 @@ pub extern "C" fn tick(frame: u32) -> u32 {
         let cs = se_col(arena::COL_SPRITE);
         let ca = se_col(arena::COL_ACTOR);
 
+        // The collisions were decided by `process/hit.rs` last frame; what
+        // they left in the columns is the score, the bees and whether we live.
+        let mut live_bees = 0;
+        for i in E0..E0 + BEES {
+            if (*se_row::<Actor>(&ca, i)).live == 1 {
+                live_bees += 1;
+            }
+        }
+        run.bees = live_bees;
+        run.score = (BEES - live_bees) * 10;
+        if (*se_row::<Actor>(&ca, SHIP)).live == 0 {
+            run.alive = 0;
+        } else if run.bees == 0 {
+            run.alive = 2;
+        }
+        if run.alive != 1 {
+            return 0;
+        }
+
         // Steer. The only input the game takes, read from the arena like
         // everything else — no host call, no import.
         let mut dx = 0.0;
@@ -151,55 +169,12 @@ pub extern "C" fn tick(frame: u32) -> u32 {
             run.bomb_t = (1.1 - (BEES - run.bees) as f32 * 0.02).max(0.35);
         }
 
-        // A bullet that reaches a bee kills both.
-        for b in B0..B0 + BULLETS {
-            if (*se_row::<Actor>(&ca, b)).live != 1 {
-                continue;
-            }
-            let sb = *se_row::<Sprite>(&cs, b);
-            for e in E0..E0 + BEES {
-                if (*se_row::<Actor>(&ca, e)).live != 1 {
-                    continue;
-                }
-                if overlap(&sb, &*se_row::<Sprite>(&cs, e)) {
-                    park(&cs, &ca, b);
-                    park(&cs, &ca, e);
-                    run.score += 10;
-                    run.bees -= 1;
-                    break;
-                }
-            }
-        }
-
-        // A bomb that reaches the ship ends the run.
-        let ship = *se_row::<Sprite>(&cs, SHIP);
-        for o in O0..O0 + BOMBS {
-            if (*se_row::<Actor>(&ca, o)).live == 1 && overlap(&ship, &*se_row::<Sprite>(&cs, o)) {
-                run.alive = 0;
-            }
-        }
-        // So does a swarm that has come down to the ship's row.
-        for e in E0..E0 + BEES {
-            if (*se_row::<Actor>(&ca, e)).live == 1 && (*se_row::<Sprite>(&cs, e)).pos[1] < SHIP_Y + 0.35 {
-                run.alive = 0;
-            }
-        }
-        if run.bees == 0 && run.alive == 1 {
-            run.alive = 2;
-        }
-
         // The bar is how many bees are left, as a length.
         let bar = &mut *se_row::<Sprite>(&cs, BAR);
         bar.size = [3.0 * run.bees as f32 / BEES as f32, 0.08];
         bar.pos = [-HALF_W + 0.1 + bar.size[0] * 0.5, HALF_H - 0.12];
         0
     }
-}
-
-/// Centre-distance test against half-extents, which is why `pos` is the centre.
-fn overlap(a: &Sprite, b: &Sprite) -> bool {
-    (a.pos[0] - b.pos[0]).abs() < (a.size[0] + b.size[0]) * 0.5
-        && (a.pos[1] - b.pos[1]).abs() < (a.size[1] + b.size[1]) * 0.5
 }
 
 /// Hand the first parked row in `first..first + n` out as something new.
@@ -224,14 +199,6 @@ unsafe fn launch(
         *se_row::<Sprite>(cs, i) = Sprite { pos: at, size, tint, uv: [shape, 0.0, 0.0, 0.0] };
         return;
     }
-}
-
-/// Take a row out of play: not moved, not tested, and nothing to draw.
-unsafe fn park(cs: &Column, ca: &Column, i: u32) {
-    (*se_row::<Actor>(ca, i)).live = 0;
-    let s = &mut *se_row::<Sprite>(cs, i);
-    s.size = [0.0, 0.0];
-    s.pos = [0.0, -9.0];
 }
 
 /// The roster, from nothing. Idempotent, so a restart is the same call.

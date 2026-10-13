@@ -6,7 +6,4 @@
 //! the `uv` field to do it with — the day a binding exists, this file does not
 //! change.
 
-#[used]
-#[link_section = "se.asset"]
-static DATA: [u8; include_bytes!("sprites/atlas.png").len()] =
-    *include_bytes!("sprites/atlas.png");
+se::asset!("sprites/atlas.png");

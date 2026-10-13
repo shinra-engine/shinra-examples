@@ -9,6 +9,4 @@
 //! `#[used]` because nothing references it: `--gc-sections` would otherwise
 //! drop the only thing in the module.
 
-#[used]
-#[link_section = "se.asset"]
-static DATA: [u8; include_bytes!("teapot/model.obj").len()] = *include_bytes!("teapot/model.obj");
+se::asset!("teapot/model.obj");

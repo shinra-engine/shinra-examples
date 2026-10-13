@@ -6,20 +6,8 @@
 // all of them and a single instanced draw paints all of them.
 package shinra:game4@0.1.0;
 
-interface types {
-  record vec2 { x: f32, y: f32 }
-  record vec3 { x: f32, y: f32, z: f32 }
-  record vec4 { x: f32, y: f32, z: f32, w: f32 }
-}
-
-interface handles {
-  record span   { off: u32, len: u32 }
-  record column { base: u32, cap: u32, stride: u32, pool: u32 }
-  record pool   { len: u32, cap: u32 }
-}
-
 interface components {
-  use types.{vec2, vec4};
+  use shinra:engine/types.{vec2, vec4};
 
   /// One drawable rectangle, and the instance input of the only draw. `pos` is
   /// the centre, so collision is a centre-distance test against `size * 0.5`.
@@ -57,31 +45,5 @@ interface control {
     bees: u32,
   }
 
-  record clock { t: f32, dt: f32, frame: u32, swipe: s32 }
-
-  /// bit 0..25 a..z, 26 space, 27 enter, 28/29 left/right, 30/31 up/down.
-  record input {
-    down: u32,
-    pressed: u32,
-    released: u32,
-    mouse-x: f32,
-    mouse-y: f32,
-    mouse-down: u32,
-  }
 }
 
-interface render {
-  record command {
-    kind: u32,
-    vertices: u32,
-    shader: u32,
-    column: u32,
-    count: u32,
-    uniform-off: u32,
-    uniform-len: u32,
-    pad: u32,
-    clear-r: f32, clear-g: f32, clear-b: f32, clear-a: f32,
-  }
-
-  record frame { commands: u32, count: u32, present: u32, epoch: u32 }
-}

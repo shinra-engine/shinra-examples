@@ -36,9 +36,13 @@ pub extern "C" fn record() -> u32 {
         };
         *cmds.add(1) = Command {
             kind: DRAW_INSTANCED,
-            // Four triangles per body. The host draws what the module says;
-            // it has no idea what the geometry is.
-            vertices: 12,
+            // The mesh is an asset id; the host draws that asset's vertices.
+            mesh: match (*(arena::LOOK as *const Look)).asset {
+                0 => assets::BUNNY,
+                1 => assets::QUAD,
+                _ => assets::TEAPOT,
+            },
+            vertices: 0,
             column: arena::COL_TRANSFORM,
             count: bodies,
             uniform_off: arena::CAMERA,

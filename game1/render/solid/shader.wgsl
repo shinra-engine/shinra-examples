@@ -49,50 +49,28 @@ fn rotate(q: vec4<f32>, v: vec3<f32>) -> vec3<f32> {
     return v + q.w * t + cross(q.xyz, t);
 }
 
-/// Three models, chosen per row by `transform.kind`.
-///
-/// They are built here rather than loaded because the point being made is
-/// that the *choice* crosses the boundary as data: the control layer writes a
-/// number, a stage copies it onto every row, and it arrives as instance
-/// input. Where the vertices come from is this shader's business — an asset
-/// module publishing them would change nothing above this line.
-fn model_vertex(kind: u32, vi: u32) -> vec3<f32> {
-    var tetra = array<vec3<f32>, 12>(
-        vec3<f32>( 0.0,  0.8,  0.0), vec3<f32>(-0.7, -0.4,  0.4), vec3<f32>( 0.7, -0.4,  0.4),
-        vec3<f32>( 0.0,  0.8,  0.0), vec3<f32>( 0.7, -0.4,  0.4), vec3<f32>( 0.0, -0.4, -0.8),
-        vec3<f32>( 0.0,  0.8,  0.0), vec3<f32>( 0.0, -0.4, -0.8), vec3<f32>(-0.7, -0.4,  0.4),
-        vec3<f32>(-0.7, -0.4,  0.4), vec3<f32>( 0.0, -0.4, -0.8), vec3<f32>( 0.7, -0.4,  0.4),
-    );
-    var spike = array<vec3<f32>, 12>(
-        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>(-0.35, -0.6,  0.35), vec3<f32>( 0.35, -0.6,  0.35),
-        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>( 0.35, -0.6,  0.35), vec3<f32>( 0.35, -0.6, -0.35),
-        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>( 0.35, -0.6, -0.35), vec3<f32>(-0.35, -0.6, -0.35),
-        vec3<f32>( 0.0,  1.3,  0.0), vec3<f32>(-0.35, -0.6, -0.35), vec3<f32>(-0.35, -0.6,  0.35),
-    );
-    var plate = array<vec3<f32>, 12>(
-        vec3<f32>(-0.9,  0.05, -0.9), vec3<f32>( 0.9,  0.05, -0.9), vec3<f32>( 0.9,  0.05,  0.9),
-        vec3<f32>(-0.9,  0.05, -0.9), vec3<f32>( 0.9,  0.05,  0.9), vec3<f32>(-0.9,  0.05,  0.9),
-        vec3<f32>(-0.9, -0.05,  0.9), vec3<f32>( 0.9, -0.05,  0.9), vec3<f32>( 0.9, -0.05, -0.9),
-        vec3<f32>(-0.9, -0.05,  0.9), vec3<f32>( 0.9, -0.05, -0.9), vec3<f32>(-0.9, -0.05, -0.9),
-    );
-    if (kind == 1u) { return spike[vi]; }
-    if (kind == 2u) { return plate[vi]; }
-    return tetra[vi];
+/// Meshes arrive as vertex buffer 1 (`MeshVertex`); the engine does not
+/// normalise them, so each is scaled to a common size by `inst.kind`, which
+/// `process/model.rs` copies from `look.asset`: bunny x6.0 (spans ~0.16),
+/// quad x1.0, teapot x0.25 (spans ~+-3).
+fn mesh_scale(kind: u32) -> f32 {
+    if (kind == 0u) { return 6.0; }
+    if (kind == 1u) { return 1.0; }
+    return 0.25;
 }
 
 @vertex
-fn vs_main(@builtin(vertex_index) vi: u32, inst: TransformInstance) -> VsOut {
-    let local = model_vertex(inst.kind, vi) * inst.scale;
+fn vs_main(inst: TransformInstance, v: MeshVertex) -> VsOut {
+    let local = v.pos * (inst.scale * mesh_scale(inst.kind));
     let world = rotate(inst.rot, local) + inst.pos;
 
-    let tri = vi / 3u;
     var o: VsOut;
     o.clip = proj_of(cam.fov) * view_of(cam.eye, cam.focus) * vec4<f32>(world, 1.0);
-    o.normal = normalize(rotate(inst.rot, model_vertex(inst.kind, vi)));
+    o.normal = normalize(rotate(inst.rot, v.normal));
     o.tint = vec3<f32>(
-        0.45 + 0.35 * f32(tri % 2u),
-        0.55 + 0.20 * f32((tri + 1u) % 3u) / 2.0,
-        0.85 - 0.25 * f32(tri % 3u) / 2.0,
+        0.45 + 0.35 * f32(inst.kind % 2u),
+        0.55 + 0.20 * f32((inst.kind + 1u) % 3u) / 2.0,
+        0.85 - 0.25 * f32(inst.kind % 3u) / 2.0,
     );
     return o;
 }

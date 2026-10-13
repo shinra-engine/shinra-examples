@@ -4,6 +4,7 @@
 //! same column, so they are the same call — which is the reason they share a
 //! pool, and the reason `sprite` is the record the contract makes widest.
 
+use crate::render::*;
 use crate::*;
 
 #[used]
@@ -11,24 +12,6 @@ use crate::*;
 static WGSL: [u8; include_bytes!("flat/shader.wgsl").len()] =
     *include_bytes!("flat/shader.wgsl");
 
-const BEGIN_PASS: u32 = 0;
-const DRAW_INSTANCED: u32 = 1;
-const END_PASS: u32 = 3;
-
-const BLANK: Command = Command {
-    kind: BEGIN_PASS,
-    vertices: 0,
-    shader: 0,
-    column: u32::MAX,
-    count: 0,
-    uniform_off: 0,
-    uniform_len: 0,
-    pad: 0,
-    clear_r: 0.0,
-    clear_g: 0.0,
-    clear_b: 0.0,
-    clear_a: 1.0,
-};
 
 #[no_mangle]
 pub extern "C" fn record() -> u32 {

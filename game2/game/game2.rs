@@ -3,12 +3,11 @@
 //! Its whole effect is the control var set. It asks for a roster by writing
 //! the pool's length, seeds the rows once, and then only ever writes `view`,
 //! `run` and `clock` — plus the two things a rule rather than a transform
-//! decides: which parked cactus comes back out, and whether the runner has
-//! hit one.
+//! decides: which parked cactus comes back out, and whether the run is over.
 //!
-//! Collision is here and not in a stage on purpose. A stage transforms rows;
-//! whether the run is over is a rule about the game, and the game state it
-//! sets is a control var, which only this module may write.
+//! Collision is a pair stage (`process/hit.rs`) that marks a cactus with
+//! `live == 2`; ending the run is a control var, which only this module may
+//! write, so it reads that mark.
 
 use crate::*;
 
@@ -74,18 +73,10 @@ pub extern "C" fn tick(frame: u32) -> u32 {
             release(&cs, &ch, run.speed);
         }
 
-        // Collision: a centre-distance test against half-extents, which is why
-        // `pos` is the centre and not a corner.
-        let r = *se_row::<Sprite>(&cs, RUNNER);
+        // A hit is a mark `process/hit.rs` left on a cactus; the geometry is
+        // not decided here.
         for i in 1..=HAZARDS {
-            let h = &*se_row::<Hazard>(&ch, i);
-            if h.live != 1 {
-                continue;
-            }
-            let s = &*se_row::<Sprite>(&cs, i);
-            let dx = (r.pos[0] - s.pos[0]).abs();
-            let dy = (r.pos[1] - s.pos[1]).abs();
-            if dx < (r.size[0] + h.width) * 0.5 && dy < (r.size[1] + h.height) * 0.5 {
+            if (*se_row::<Hazard>(&ch, i)).live == 2 {
                 run.alive = 0;
                 return 0;
             }
